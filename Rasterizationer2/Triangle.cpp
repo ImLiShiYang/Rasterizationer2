@@ -7,50 +7,70 @@ Triangle::Triangle()
 
 Triangle::Triangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3)
 {
-	vertex[0] = v1;
-	vertex[1] = v2;
-	vertex[2] = v3;
+	vertex[0].vertex = v1;
+	vertex[1].vertex = v2;
+	vertex[2].vertex = v3;
 
 	//创建三角形时就对顶点逆时针排序
 	//EnsureCounterClockwiseOrder();
 }
 
 
-
-void Triangle::setVertexs(glm::vec4 newVert[3])
+Triangle::Triangle(const Vertex& v1, const Vertex& v2, const Vertex& v3)
 {
-	vertex[0] = newVert[0];
-	vertex[1] = newVert[1];
-	vertex[2] = newVert[2];
+	vertex[0] = v1;
+	vertex[1] = v2;
+	vertex[2] = v3;
 }
 
-void Triangle::setVertexs(int index, glm::vec4 newVert)
+Triangle::Triangle(glm::vec3 v[3])
 {
-	vertex[index] = newVert;
+	for (size_t i = 0; i < 3; i++)
+	{
+		setVertexPos(i, glm::vec4(v[i].x, v[i].y, v[i].z, 1));
+	}
 }
+
+void Triangle::setVertexs(int index, const Vertex& v)
+{
+}
+
 
 void Triangle::setNormal(int index, glm::vec4& newNorm)
 {
-	normal[index] = newNorm;
+	vertex[index].normal = newNorm;
 }
+
 
 void Triangle::setNormal(glm::vec4 newNorm[3])
 {
-	normal[0] = newNorm[0];
-	normal[1] = newNorm[1];
-	normal[2] = newNorm[2];
+	vertex[0].normal = newNorm[0];
+	vertex[1].normal = newNorm[1];
+	vertex[2].normal = newNorm[2];
 }
 
 void Triangle::setColor(int index, const TGAColor& newColor)
 {
-	vertexColor[index] = newColor;
+	vertex[index].vertexColor = newColor;
+}
+
+void Triangle::setVertexPos(int index, glm::vec4 newVert)
+{
+	vertex[index].vertex = newVert;
 }
 
 void Triangle::setColor(const TGAColor newColor[3])
 {
-	vertexColor[0] = newColor[0];
-	vertexColor[1] = newColor[1];
-	vertexColor[2] = newColor[2];
+	vertex[0].vertexColor = newColor[0];
+	vertex[1].vertexColor = newColor[1];
+	vertex[2].vertexColor = newColor[2];
+}
+
+void Triangle::setVertexPos(glm::vec4 newVert[3])
+{
+	vertex[0].vertex = newVert[0];
+	vertex[1].vertex = newVert[1];
+	vertex[2].vertex = newVert[2];
 }
 
 //根据y值排序，使得v1.y>v2.y>v3.y

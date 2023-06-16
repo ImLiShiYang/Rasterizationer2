@@ -1,8 +1,15 @@
 #include "Rasterizer.h"
 
+
 Rasterizer::Rasterizer(std::string file, TGAImage img):filename(file),image(img), width(img.width()), height(img.height())
+			, zneardis(0.1f), zfardis(50), fovY(90), aspect((float)4/3)
 {
 	image.flip_vertically(); /*让坐标原点位于图像左下角*/
+
+	xmin = 0;
+	xmax = width;
+	ymin = 0;
+	ymax = height;
 
 	cameraPos = glm::vec3(0, 0, 2);
 	theta = 0;
@@ -46,24 +53,60 @@ void Rasterizer::SetTheta(float t)
 	theta = t;
 }
 
-void Rasterizer::draw()
+void Rasterizer::draw(std::vector<std::shared_ptr<Triangle>>& TriangleList)
 {
-	glm::mat4 MVP = Perspective_Matrix(0.01f, 100.f, 90.f, (float)width / height) *
-		View_Matrix(cameraPos, glm::vec3(0.0f), glm::vec3(0, 1.0f, 0)) * Model_Matrix();
+	glm::mat4 MV = View_Matrix(cameraPos, glm::vec3(0.0f), glm::vec3(0, 1.0f, 0)) * Model_Matrix();
+	glm::mat4 P = Perspective_Matrix(zneardis, zfardis, fovY, aspect);
 
-	Triangle tri(glm::vec4(0.5f, -0.5f, 0.5f, 1.f), glm::vec4(-0.5f, -0.5f, -0.5f, 1.f), glm::vec4(-0.5f, -0.5f, 0.5f, 1.f));
-	for (int i = 0; i < 3; i++)
+
+	for (std::shared_ptr<Triangle> t : TriangleList)
 	{
-		tri.vertex[i] = MVP * tri.vertex[i];
-		tri.vertex[i] /= tri.vertex[i].w;
-		tri.vertex[i] = Viewport_Matrix(width, height) * tri.vertex[i];
+		//从局部坐标转换到相机坐标
+		std::vector<glm::vec4> vert
+		{
+			MV * t->vertex[0].vertex,
+			MV * t->vertex[1].vertex,
+			MV * t->vertex[2].vertex
+		};
+
+
+		//从相机空间转换到齐次裁剪空间
+		for (int i = 0; i < 3; i++)
+		{
+			vert[i] = P * vert[i];
+		}
+		
+		//简单处理的齐次裁剪，超出范围的三角形直接丢弃
+		for (int i = 0; i < 3; i++)
+		{
+			if (vert[i].w > -zneardis || vert[i].w < -zfardis)
+				return;
+		}
+		std::vector<glm::vec4> clipSpacePos = vert;
+
+		//透视除法和视口变换
+		for (int i = 0; i < 3; i++)
+		{
+			vert[i] /= vert[i].w;
+			vert[i] = Viewport_Matrix(width, height) * vert[i];
+		}
+
+		Triangle NewTri = *t;
+		for (size_t i = 0; i < 3; i++)
+		{
+			//NewTriangle的顶点是屏幕空间下的坐标
+			NewTri.setVertexPos(i, vert[i]);
+			//NewTri.setColor(i, t->vertex[i].vertexColor);
+			//NewTri.setNormal(i, normal[i]);
+		}
+
+
+		//屏幕裁剪
+		std::vector<Triangle> NewTriangle = SuthHodgClipTriangle(NewTri, clipSpacePos);
+		for (auto sjx : NewTriangle)
+			rasterize_wireframe(sjx);
 	}
 
-	tri.setColor(0, TGAColor(255, 0, 0, 0));
-	tri.setColor(1, TGAColor(0, 255, 0, 0));
-	tri.setColor(2, TGAColor(0, 0, 255, 0));
-
-	rasterize_wireframe(tri);
 }
 
 void Rasterizer::output()
@@ -73,17 +116,257 @@ void Rasterizer::output()
 
 void Rasterizer::rasterize_wireframe(const Triangle& t)
 {
-	draw_line(t.vertex[0], t.vertex[1]);
-	draw_line(t.vertex[1], t.vertex[2]);
-	draw_line(t.vertex[2], t.vertex[0]);
+	draw_line(t.vertex[0].vertex, t.vertex[1].vertex);
+	draw_line(t.vertex[1].vertex, t.vertex[2].vertex);
+	draw_line(t.vertex[2].vertex, t.vertex[0].vertex);
+}
+
+//编码裁剪算法
+std::vector<Line> Rasterizer::clip_Cohen_Sutherland(const Triangle& t, std::vector<glm::vec4> clipSpacePos)
+{
+	auto vert = t.vertex;
+	std::vector<Line> line
+	{
+		Line(vert[0],vert[1]),
+		Line(vert[1],vert[2]),
+		Line(vert[2],vert[0])
+	};
+
+	for (int i = 0; i < 3; i++)
+	{
+		CodeClip(line[i], { clipSpacePos[i],clipSpacePos[(i + 1) % 3] });
+	}
+
+	return line;
+}
+
+int Rasterizer::GetCode(float x, float y)
+{
+	int code = 0;
+	if (x < xmin)
+		code |= LEFT;
+	else if (x > xmax)
+		code |= RIGHT;
+
+	if (y < ymin)
+		code |= BOTTOM;
+	else if (y > ymax)
+		code |= TOP;
+
+	return code;
+}
+//编码裁剪
+void Rasterizer::CodeClip(Line& line, std::vector<glm::vec4> clipSpacePos)
+{
+	float& x0 = line.v1.vertex.x, & y0 = line.v1.vertex.y, & z0 = line.v1.vertex.z;
+	float& x1 = line.v2.vertex.x, & y1 = line.v2.vertex.y, & z1 = line.v2.vertex.z;
+
+	int code0 = GetCode(x0, y0);
+	int code1 = GetCode(x1, y1);
+
+	bool f = false;
+	float x, y, z;
+
+	while (1)
+	{
+		//两个点都在内
+		if (!(code0 | code1))
+		{
+			f = true;
+			break;
+		}
+		//两个点都在外
+		else if ((code0 & code1))
+		{
+			line = Line();
+			break;
+		}
+
+		int code = code0 ? code0 : code1;
+		//透视插值
+		if (code & LEFT)
+		{
+			float t = (xmin - x0) / (x1 - x0);
+			t = perspectiveLerp(t, clipSpacePos[0], clipSpacePos[1]);
+			y = y0 + t * (y1 - y0);
+			z = z0 + t * (z1 - z0);
+			x = xmin;
+		}
+		else if (code & RIGHT)
+		{
+			float t = (xmax - x0) / (x1 - x0);
+			t = perspectiveLerp(t, clipSpacePos[0], clipSpacePos[1]);
+			y = y0 + t * (y1 - y0);
+			z = z0 + t * (z1 - z0);
+			x = xmax;
+		}
+		else if (code & BOTTOM)
+		{
+			float t = (ymin - y0) / (y1 - y0);
+			t = perspectiveLerp(t, clipSpacePos[0], clipSpacePos[1]);
+			x = x0 + (x1 - x0) * t;
+			z = z0 + t * (z1 - z0);
+			y = ymin;
+		}
+		else if (code & TOP)
+		{
+			float t = (ymax - y0) / (y1 - y0);
+			x = x0 + (x1 - x0) * t;
+			z = z0 + t * (z1 - z0);
+			y = ymax;
+		}
+
+		if (code == code0)
+		{
+			x0 = x;
+			y0 = y;
+			code0 = GetCode(x, y);
+		}
+		else if (code == code1)
+		{
+			x1 = x;
+			y1 = y;
+			code1 = GetCode(x, y);
+		}
+
+	}
+}
+
+std::vector<Triangle> Rasterizer::SuthHodgClipTriangle(Triangle& triangle, std::vector<glm::vec4>& clipSpacePos)
+{
+	//存储屏幕的四个拐角点，使用逆时针顺序存储
+	std::vector<glm::vec2> screenIntersection = { glm::vec2(0,0),
+		glm::vec2(0,height),glm::vec2(width,height),glm::vec2(width,0) };
+
+	//三角形的三个点
+	std::vector<Vertex> poly_points
+	{
+		triangle.vertex[0],
+		triangle.vertex[1],
+		triangle.vertex[2]
+	};
+		
+	//裁剪后的点
+	for (int i = 0; i < 4; i++)
+		SuthHodgClip(poly_points, screenIntersection[i], screenIntersection[(i + 1) % 4], clipSpacePos);
+
+	std::vector<Triangle> triangles;
+
+	if (!poly_points.empty())
+	{
+		for (int i = 1; i < poly_points.size() - 1; i++)
+		{
+			triangles.emplace_back(Triangle(poly_points[0], poly_points[i % poly_points.size()],
+				poly_points[(i + 1) % poly_points.size()]));
+		}
+	}
+	
+	
+
+	return triangles;
+}
+
+void Rasterizer::SuthHodgClip(std::vector<Vertex>& poly_points, glm::vec2 p1, glm::vec2 p2, std::vector<glm::vec4>& clipSpacePos)
+{
+	//存储裁切后的点
+	std::vector<Vertex> new_point;
+	//存储裁切后对应裁剪空间的点
+	std::vector<glm::vec4> new_clipSpacePos;
+
+	for (int i = 0; i < poly_points.size(); i++)
+	{
+		// i 和 j 在三角形中形成一条线
+		int j = (i + 1) % poly_points.size();
+		float x1 = poly_points[i].vertex.x, y1 = poly_points[i].vertex.y;
+		float x2 = poly_points[j].vertex.x, y2 = poly_points[j].vertex.y;
+
+		// 计算第一个点相对于裁剪线的位置
+		//这里是二维向量的叉积运算，如果值大于零，说明(x1,y1)在向量(p1,p2)的左侧，反之则是右侧
+ 		float i_pos = (p2.x - p1.x) * (y1 - p1.y) - (p2.y - p1.y) * (x1 - p1.x);
+
+		// 计算第二个点相对于裁剪线的位置
+		float j_pos = (p2.x - p1.x) * (y2 - p1.y) - (p2.y - p1.y) * (x2 - p1.x);
+
+		// 情况1：当两个点都在内部时
+		if (i_pos < 0 && j_pos < 0)
+		{
+			//只添加第二个点
+			new_point.push_back(poly_points[j]);
+			new_clipSpacePos.emplace_back(clipSpacePos[j]);
+		}
+
+		// 情况2：仅第一个点在外部时
+		else if (i_pos >= 0 && j_pos < 0)
+		{
+			// 添加边缘的交点和第二个点
+			//边缘的交点
+			float x = x_intersect(p1, p2, poly_points[i].vertex, poly_points[j].vertex);
+			float y = y_intersect(p1, p2, poly_points[i].vertex, poly_points[j].vertex);
+			//屏幕空间
+			float t;
+			if (poly_points[j].vertex.x - poly_points[i].vertex.x != 0)
+				t = (x - poly_points[i].vertex.x) / (poly_points[j].vertex.x - poly_points[i].vertex.x);
+			else
+				t = (y - poly_points[i].vertex.y) / (poly_points[j].vertex.y - poly_points[i].vertex.y);
+			//透视矫正插值
+			float t_perspective = perspectiveLerp(t, clipSpacePos[i], clipSpacePos[j]);
+			Vertex v = lerp(poly_points[i], poly_points[j], t_perspective);
+			//顶点还是用屏幕空间的插值计算
+			v.vertex= lerp(poly_points[i].vertex, poly_points[j].vertex, t);
+			v.vertex = glm::vec4(x, y, v.vertex.w, 1);
+			new_point.push_back(v);
+
+			glm::vec4 v_clipspace = lerp(clipSpacePos[i], clipSpacePos[j], t_perspective);
+			new_clipSpacePos.emplace_back(v_clipspace);
+			//第二个点
+			new_point.push_back(poly_points[j]);
+			new_clipSpacePos.emplace_back(clipSpacePos[j]);
+
+		}
+
+		// 情况3：仅第二个点在外部时
+		else if (i_pos < 0 && j_pos >= 0)
+		{
+			// 添加边缘的交点
+			//边缘的交点
+			float x = x_intersect(p1, p2, poly_points[i].vertex, poly_points[j].vertex);
+			float y = y_intersect(p1, p2, poly_points[i].vertex, poly_points[j].vertex);
+			//屏幕空间
+			float t;
+			if (poly_points[j].vertex.x - poly_points[i].vertex.x != 0)
+				t = (x - poly_points[i].vertex.x) / (poly_points[j].vertex.x - poly_points[i].vertex.x);
+			else
+				t = (y - poly_points[i].vertex.y) / (poly_points[j].vertex.y - poly_points[i].vertex.y);
+			//透视矫正插值
+			float t_perspective = perspectiveLerp(t, clipSpacePos[i], clipSpacePos[j]);
+			Vertex v = lerp(poly_points[i], poly_points[j], t_perspective);
+			//顶点还是用屏幕空间的插值计算
+			v.vertex = lerp(poly_points[i].vertex, poly_points[j].vertex, t);
+			v.vertex = glm::vec4(x, y, v.vertex.w, 1);
+			new_point.push_back(v);
+
+			glm::vec4 v_clipspace = lerp(clipSpacePos[i], clipSpacePos[j], t_perspective);
+			new_clipSpacePos.emplace_back(v_clipspace);
+		}
+
+		// 情况4：当两个点都在外部时
+		else
+		{
+			// 不添加任何点
+		}
+	}
+
+	poly_points = new_point;
+	clipSpacePos = new_clipSpacePos;
 }
 
 glm::mat4 Rasterizer::Model_Matrix()
 {
 	glm::mat4 matrix(1.0f);
 	float angle = glm::radians(theta);
-	glm::vec3 axis(0.0f, 1.0f, 1.0f);
+	glm::vec3 axis(1.0f, 1.0f, 1.0f);
 	matrix = glm::rotate(matrix, angle, axis);
+	//matrix = glm::translate(matrix, glm::vec3(5, 0, 0));
 
 	return matrix;
 }

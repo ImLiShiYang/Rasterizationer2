@@ -127,11 +127,13 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="geometry.h" />
     <ClInclude Include="Rasterizer.h" />
     <ClInclude Include="tgaimage.h" />
     <ClInclude Include="Triangle.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="geometry.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Rasterizer.cpp" />
     <ClCompile Include="tgaimage.cpp" />
