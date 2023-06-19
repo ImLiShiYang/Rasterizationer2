@@ -6,11 +6,19 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include <memory>
+#include <vector>
+#include <array>
 
 #include "tgaimage.h"
 #include "Triangle.h"
 
 constexpr float MY_PI = 3.14159265359f;
+
+enum class TriangleVertexOrder
+{
+	counterclockwise,
+	clockwise
+};
 
 class Rasterizer
 {
@@ -42,6 +50,14 @@ public:
 	void MVP_Matrix();
 	void SetTheta(float t);
 
+	void TurnOnBackCulling();
+	void TurnOffBackCulling();
+	void SetVertexOrder(const TriangleVertexOrder& t);
+	TriangleVertexOrder GetVertexOrder();
+	//, const std::array<glm::vec4, 3>& clipSpacePos
+	void rasterize_edge_walking(const Triangle& m);
+	void rasterize_edge_equation(const Triangle& m, const std::array<glm::vec4, 3>& clipSpacePos);
+
 private:
 	TGAImage image;
 	const TGAColor white = TGAColor(255, 255, 255, 255);
@@ -62,6 +78,10 @@ private:
 	const int BOTTOM = 4;
 	const int TOP = 8;
 	int xmin, xmax, ymin, ymax;
+
+	//三角形顶点顺序
+	TriangleVertexOrder vertexOrder = TriangleVertexOrder::counterclockwise;
+	bool backCulling = false;
 };
 
 

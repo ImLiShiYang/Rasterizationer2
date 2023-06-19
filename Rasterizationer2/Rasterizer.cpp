@@ -53,6 +53,92 @@ void Rasterizer::SetTheta(float t)
 	theta = t;
 }
 
+void Rasterizer::TurnOnBackCulling()
+{
+	this->backCulling = true;
+}
+
+void Rasterizer::TurnOffBackCulling()
+{
+	this->backCulling = false;
+}
+
+void Rasterizer::SetVertexOrder(const TriangleVertexOrder& t)
+{
+	this->vertexOrder = t;
+}
+
+TriangleVertexOrder Rasterizer::GetVertexOrder()
+{
+	auto v = this->vertexOrder;
+	return v;
+}
+
+//const std::array<glm::vec4, 3>& clipSpacePos
+void Rasterizer::rasterize_edge_walking(const Triangle& m )
+{
+	Triangle t = m;
+	if (t.vertex[0].vertex.y > t.vertex[1].vertex.y)
+		std::swap(t.vertex[0], t.vertex[1]);
+	if (t.vertex[0].vertex.y > t.vertex[2].vertex.y)
+		std::swap(t.vertex[0], t.vertex[2]);
+	if (t.vertex[1].vertex.y > t.vertex[2].vertex.y)
+		std::swap(t.vertex[1], t.vertex[2]);
+
+	if (t.vertex[0].vertex.y == t.vertex[2].vertex.y)
+		return;
+
+	float longEdge = t.vertex[2].vertex.y - t.vertex[0].vertex.y;
+	//这里的ceil是为了四舍五入
+	for (int i = std::ceil(t.vertex[0].vertex.y - 0.5f); i < std::ceil(t.vertex[1].vertex.y - 0.5f); i++)
+	{
+		float shortEdge = t.vertex[1].vertex.y - t.vertex[0].vertex.y;
+
+		float shortlerp = ((float)i + 0.5f - t.vertex[0].vertex.y) / shortEdge;
+		float longlerp= ((float)i + 0.5f - t.vertex[0].vertex.y) / longEdge;
+
+		Vertex shortVert = lerp(t.vertex[0], t.vertex[1], shortlerp);
+		Vertex longVert = lerp(t.vertex[0], t.vertex[2], longlerp);
+
+		if (shortVert.vertex.x > longVert.vertex.x)
+			std::swap(shortVert, longVert);
+
+		for (float x = std::ceil(shortVert.vertex.x-0.5f); x < std::ceil(longVert.vertex.x-0.5); x++)
+		{
+			float pixellerp = ((float)x + 0.5f - shortVert.vertex.x) / (longVert.vertex.x - shortVert.vertex.x);
+			Vertex pixel = lerp(shortVert, longVert, pixellerp);
+			image.set(pixel.vertex.x, pixel.vertex.y, pixel.vertexColor);
+		}
+	}
+
+	for (float i = std::ceil(t.vertex[1].vertex.y - 0.5f); i < std::ceil(t.vertex[2].vertex.y - 0.5f); i++)
+	{
+		float shortEdge = t.vertex[2].vertex.y - t.vertex[1].vertex.y;
+
+		float shortlerp = ((float)i + 0.5f - t.vertex[1].vertex.y) / shortEdge;
+		float longlerp = ((float)i + 0.5f - t.vertex[0].vertex.y) / longEdge;
+
+		Vertex shortVert = lerp(t.vertex[1], t.vertex[2], shortlerp);
+		Vertex longVert = lerp(t.vertex[0], t.vertex[2], longlerp);
+
+		if (shortVert.vertex.x > longVert.vertex.x)
+			std::swap(shortVert, longVert);
+
+		for (float x = std::ceil(shortVert.vertex.x - 0.5f); x < std::ceil(longVert.vertex.x - 0.5); x++)
+		{
+			float pixellerp = ((float)x + 0.5f - shortVert.vertex.x) / (longVert.vertex.x - shortVert.vertex.x);
+			Vertex pixel = lerp(shortVert, longVert, pixellerp);
+			image.set(pixel.vertex.x, pixel.vertex.y, pixel.vertexColor);
+		}
+	}
+
+}
+
+void Rasterizer::rasterize_edge_equation(const Triangle& m, const std::array<glm::vec4, 3>& clipSpacePos)
+{
+
+}
+
 void Rasterizer::draw(std::vector<std::shared_ptr<Triangle>>& TriangleList)
 {
 	glm::mat4 MV = View_Matrix(cameraPos, glm::vec3(0.0f), glm::vec3(0, 1.0f, 0)) * Model_Matrix();
@@ -69,6 +155,22 @@ void Rasterizer::draw(std::vector<std::shared_ptr<Triangle>>& TriangleList)
 			MV * t->vertex[2].vertex
 		};
 
+		if (backCulling)
+		{
+			glm::vec4 v1 = vert[1] - vert[0], v2 = vert[2] - vert[1];
+			glm::vec3 v = glm::cross(glm::vec3(v1), glm::vec3(v2));
+			glm::vec3 gaze(vert[0]);
+			if (vertexOrder == TriangleVertexOrder::counterclockwise)
+			{
+				if (glm::dot(v, gaze) >= 0)
+					return;
+			}
+			else
+			{
+				if (glm::dot(v, gaze) <= 0)
+					return;
+			}
+		}
 
 		//从相机空间转换到齐次裁剪空间
 		for (int i = 0; i < 3; i++)
@@ -84,10 +186,14 @@ void Rasterizer::draw(std::vector<std::shared_ptr<Triangle>>& TriangleList)
 		}
 		std::vector<glm::vec4> clipSpacePos = vert;
 
-		//透视除法和视口变换
+		//透视除法
 		for (int i = 0; i < 3; i++)
 		{
 			vert[i] /= vert[i].w;
+		}
+		//视口变换
+		for (int i = 0; i < 3; i++)
+		{
 			vert[i] = Viewport_Matrix(width, height) * vert[i];
 		}
 
@@ -96,7 +202,7 @@ void Rasterizer::draw(std::vector<std::shared_ptr<Triangle>>& TriangleList)
 		{
 			//NewTriangle的顶点是屏幕空间下的坐标
 			NewTri.setVertexPos(i, vert[i]);
-			//NewTri.setColor(i, t->vertex[i].vertexColor);
+			NewTri.setColor(i, t->vertex[i].vertexColor);
 			//NewTri.setNormal(i, normal[i]);
 		}
 
@@ -104,7 +210,10 @@ void Rasterizer::draw(std::vector<std::shared_ptr<Triangle>>& TriangleList)
 		//屏幕裁剪
 		std::vector<Triangle> NewTriangle = SuthHodgClipTriangle(NewTri, clipSpacePos);
 		for (auto sjx : NewTriangle)
-			rasterize_wireframe(sjx);
+		{
+			//rasterize_wireframe(sjx);
+			rasterize_edge_walking(sjx);
+		}
 	}
 
 }

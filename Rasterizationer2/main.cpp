@@ -23,7 +23,7 @@ void main()
         t1->setColor(2, TGAColor(0, 0, 255));
         TriangleList.push_back(t1);
     }
-    
+    /*
     {
         glm::vec3 v[3];
         v[0] = glm::vec3(3.5, -1, -5);
@@ -34,7 +34,7 @@ void main()
         t1->setColor(1, TGAColor(0, 255, 0));
         t1->setColor(2, TGAColor(0, 0, 255));
         TriangleList.push_back(t1);
-    }
+    }*/
 
 	while (angle < 360)
 	{
@@ -45,6 +45,7 @@ void main()
 
 		Rasterizer rast(filename, image);
 		rast.SetTheta(angle);
+        rast.TurnOnBackCulling();
 		rast.draw(TriangleList);
 		rast.output();
 
