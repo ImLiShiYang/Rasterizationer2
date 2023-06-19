@@ -75,60 +75,85 @@ TriangleVertexOrder Rasterizer::GetVertexOrder()
 }
 
 //const std::array<glm::vec4, 3>& clipSpacePos
-void Rasterizer::rasterize_edge_walking(const Triangle& m )
+void Rasterizer::rasterize_edge_walking(const Triangle& m , const std::array<glm::vec4, 3>& clipSpacePos_Array)
 {
 	Triangle t = m;
+	std::array<glm::vec4, 3> clipSpacePos = clipSpacePos_Array;
 	if (t.vertex[0].vertex.y > t.vertex[1].vertex.y)
+	{
 		std::swap(t.vertex[0], t.vertex[1]);
+		std::swap(clipSpacePos[0], clipSpacePos[1]);
+	}
 	if (t.vertex[0].vertex.y > t.vertex[2].vertex.y)
+	{
 		std::swap(t.vertex[0], t.vertex[2]);
+		std::swap(clipSpacePos[0], clipSpacePos[2]);
+	}
 	if (t.vertex[1].vertex.y > t.vertex[2].vertex.y)
+	{
 		std::swap(t.vertex[1], t.vertex[2]);
+		std::swap(clipSpacePos[1], clipSpacePos[2]);
+	}
 
 	if (t.vertex[0].vertex.y == t.vertex[2].vertex.y)
 		return;
 
 	float longEdge = t.vertex[2].vertex.y - t.vertex[0].vertex.y;
+
 	//这里的ceil是为了四舍五入
-	for (int i = std::ceil(t.vertex[0].vertex.y - 0.5f); i < std::ceil(t.vertex[1].vertex.y - 0.5f); i++)
+	for (int y = std::ceil(t.vertex[0].vertex.y - 0.5f); y < std::ceil(t.vertex[1].vertex.y - 0.5f); y++)
 	{
 		float shortEdge = t.vertex[1].vertex.y - t.vertex[0].vertex.y;
 
-		float shortlerp = ((float)i + 0.5f - t.vertex[0].vertex.y) / shortEdge;
-		float longlerp= ((float)i + 0.5f - t.vertex[0].vertex.y) / longEdge;
+		float shortlerp = ((float)y + 0.5f - t.vertex[0].vertex.y) / shortEdge;
+		float longlerp= ((float)y + 0.5f - t.vertex[0].vertex.y) / longEdge;
 
 		Vertex shortVert = lerp(t.vertex[0], t.vertex[1], shortlerp);
 		Vertex longVert = lerp(t.vertex[0], t.vertex[2], longlerp);
 
+		Vertex shortVert_per = perspectiveLerp(t.vertex[0], t.vertex[1], shortlerp, clipSpacePos[0], clipSpacePos[1]);
+		Vertex longVert_per = perspectiveLerp(t.vertex[0], t.vertex[2], shortlerp, clipSpacePos[0], clipSpacePos[2]);
+
 		if (shortVert.vertex.x > longVert.vertex.x)
+		{
 			std::swap(shortVert, longVert);
+			//std::swap(shortVert_per, longVert_per);
+		}
 
 		for (float x = std::ceil(shortVert.vertex.x-0.5f); x < std::ceil(longVert.vertex.x-0.5); x++)
 		{
 			float pixellerp = ((float)x + 0.5f - shortVert.vertex.x) / (longVert.vertex.x - shortVert.vertex.x);
-			Vertex pixel = lerp(shortVert, longVert, pixellerp);
-			image.set(pixel.vertex.x, pixel.vertex.y, pixel.vertexColor);
+			Vertex pixel = perspectiveLerp(shortVert, longVert, pixellerp, shortVert_per.vertex, longVert_per.vertex);
+
+			image.set(x, y, pixel.vertexColor);
 		}
 	}
 
-	for (float i = std::ceil(t.vertex[1].vertex.y - 0.5f); i < std::ceil(t.vertex[2].vertex.y - 0.5f); i++)
+	for (float y = std::ceil(t.vertex[1].vertex.y - 0.5f); y < std::ceil(t.vertex[2].vertex.y - 0.5f); y++)
 	{
 		float shortEdge = t.vertex[2].vertex.y - t.vertex[1].vertex.y;
 
-		float shortlerp = ((float)i + 0.5f - t.vertex[1].vertex.y) / shortEdge;
-		float longlerp = ((float)i + 0.5f - t.vertex[0].vertex.y) / longEdge;
+		float shortlerp = ((float)y + 0.5f - t.vertex[1].vertex.y) / shortEdge;
+		float longlerp = ((float)y + 0.5f - t.vertex[0].vertex.y) / longEdge;
 
 		Vertex shortVert = lerp(t.vertex[1], t.vertex[2], shortlerp);
 		Vertex longVert = lerp(t.vertex[0], t.vertex[2], longlerp);
 
+		Vertex shortVert_per = perspectiveLerp(t.vertex[0], t.vertex[1], shortlerp, clipSpacePos[0], clipSpacePos[1]);
+		Vertex longVert_per = perspectiveLerp(t.vertex[0], t.vertex[2], shortlerp, clipSpacePos[0], clipSpacePos[2]);
+
 		if (shortVert.vertex.x > longVert.vertex.x)
+		{
 			std::swap(shortVert, longVert);
+			//std::swap(shortVert_per, longVert_per);
+		}
 
 		for (float x = std::ceil(shortVert.vertex.x - 0.5f); x < std::ceil(longVert.vertex.x - 0.5); x++)
 		{
 			float pixellerp = ((float)x + 0.5f - shortVert.vertex.x) / (longVert.vertex.x - shortVert.vertex.x);
-			Vertex pixel = lerp(shortVert, longVert, pixellerp);
-			image.set(pixel.vertex.x, pixel.vertex.y, pixel.vertexColor);
+			Vertex pixel = perspectiveLerp(shortVert, longVert, pixellerp, shortVert_per.vertex, longVert_per.vertex);
+
+			image.set(x, y, pixel.vertexColor);
 		}
 	}
 
@@ -185,6 +210,12 @@ void Rasterizer::draw(std::vector<std::shared_ptr<Triangle>>& TriangleList)
 				return;
 		}
 		std::vector<glm::vec4> clipSpacePos = vert;
+		std::array<glm::vec4,3> clipSpacePos_Array
+		{
+			clipSpacePos[0],
+			clipSpacePos[1],
+			clipSpacePos[2]
+		};
 
 		//透视除法
 		for (int i = 0; i < 3; i++)
@@ -212,7 +243,7 @@ void Rasterizer::draw(std::vector<std::shared_ptr<Triangle>>& TriangleList)
 		for (auto sjx : NewTriangle)
 		{
 			//rasterize_wireframe(sjx);
-			rasterize_edge_walking(sjx);
+			rasterize_edge_walking(sjx, clipSpacePos_Array);
 		}
 	}
 
@@ -341,7 +372,7 @@ void Rasterizer::CodeClip(Line& line, std::vector<glm::vec4> clipSpacePos)
 	}
 }
 
-std::vector<Triangle> Rasterizer::SuthHodgClipTriangle(Triangle& triangle, std::vector<glm::vec4>& clipSpacePos)
+std::vector<Triangle> Rasterizer::SuthHodgClipTriangle(Triangle& triangle, const std::vector<glm::vec4>& clipSpacePos)
 {
 	//存储屏幕的四个拐角点，使用逆时针顺序存储
 	std::vector<glm::vec2> screenIntersection = { glm::vec2(0,0),
@@ -355,9 +386,11 @@ std::vector<Triangle> Rasterizer::SuthHodgClipTriangle(Triangle& triangle, std::
 		triangle.vertex[2]
 	};
 		
+	std::vector<glm::vec4> clipSpacePos_ = clipSpacePos;
+
 	//裁剪后的点
 	for (int i = 0; i < 4; i++)
-		SuthHodgClip(poly_points, screenIntersection[i], screenIntersection[(i + 1) % 4], clipSpacePos);
+		SuthHodgClip(poly_points, screenIntersection[i], screenIntersection[(i + 1) % 4], clipSpacePos_);
 
 	std::vector<Triangle> triangles;
 
@@ -421,7 +454,7 @@ void Rasterizer::SuthHodgClip(std::vector<Vertex>& poly_points, glm::vec2 p1, gl
 			float t_perspective = perspectiveLerp(t, clipSpacePos[i], clipSpacePos[j]);
 			Vertex v = lerp(poly_points[i], poly_points[j], t_perspective);
 			//顶点还是用屏幕空间的插值计算
-			v.vertex= lerp(poly_points[i].vertex, poly_points[j].vertex, t);
+			//v.vertex= lerp(poly_points[i].vertex, poly_points[j].vertex, t);
 			v.vertex = glm::vec4(x, y, v.vertex.w, 1);
 			new_point.push_back(v);
 
@@ -450,7 +483,7 @@ void Rasterizer::SuthHodgClip(std::vector<Vertex>& poly_points, glm::vec2 p1, gl
 			float t_perspective = perspectiveLerp(t, clipSpacePos[i], clipSpacePos[j]);
 			Vertex v = lerp(poly_points[i], poly_points[j], t_perspective);
 			//顶点还是用屏幕空间的插值计算
-			v.vertex = lerp(poly_points[i].vertex, poly_points[j].vertex, t);
+			//v.vertex = lerp(poly_points[i].vertex, poly_points[j].vertex, t);
 			v.vertex = glm::vec4(x, y, v.vertex.w, 1);
 			new_point.push_back(v);
 
@@ -473,7 +506,7 @@ glm::mat4 Rasterizer::Model_Matrix()
 {
 	glm::mat4 matrix(1.0f);
 	float angle = glm::radians(theta);
-	glm::vec3 axis(1.0f, 1.0f, 1.0f);
+	glm::vec3 axis(.0f, 1.0f, 1.0f);
 	matrix = glm::rotate(matrix, angle, axis);
 	//matrix = glm::translate(matrix, glm::vec3(5, 0, 0));
 
