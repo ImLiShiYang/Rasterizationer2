@@ -206,7 +206,7 @@ void Rasterizer::rasterize_edge_walking(const Triangle& m , const std::array<glm
 
 }
 
-void Rasterizer::rasterize_edge_equation(const Triangle& m, const std::array<glm::vec4, 3>& clipSpacePos)
+void Rasterizer::rasterize_edge_equation(const Triangle& m, std::vector<glm::vec4>& clipSpacePos)
 {
 	int leftEdge = std::floor(std::min({ m.vertex[0].vertex.x, m.vertex[1].vertex.x, m.vertex[2].vertex.x }));
 	int rightEdge = std::ceil(std::max({ m.vertex[0].vertex.x, m.vertex[1].vertex.x, m.vertex[2].vertex.x }));
@@ -220,8 +220,8 @@ void Rasterizer::rasterize_edge_equation(const Triangle& m, const std::array<glm
 			Vertex pos(glm::vec4((float)x + 0.5, (float)y + 0.5, 0.f, 0.f));
 			if (insideTriangle(m, pos.vertex.x, pos.vertex.y))
 			{
-				Vertex pixel= barycentric_coordinates(pos, m.vertex[0], m.vertex[1], m.vertex[2]);
-				//Vertex pixel = barycentricPerspectiveLerp(m, glm::vec2((float)x + 0.5, (float)y + 0.5));
+				//Vertex pixel= barycentric_coordinates(pos, m.vertex[0], m.vertex[1], m.vertex[2]);
+				Vertex pixel = barycentric_coordinates_perspective(pos, m.vertex[0], m.vertex[1], m.vertex[2], clipSpacePos);
 				image.set(x, y, pixel.vertexColor);
 			}
 		}
@@ -275,12 +275,6 @@ void Rasterizer::draw(std::vector<std::shared_ptr<Triangle>>& TriangleList)
 				return;
 		}
 		std::vector<glm::vec4> clipSpacePos = vert;
-		std::array<glm::vec4,3> clipSpacePos_Array
-		{
-			clipSpacePos[0],
-			clipSpacePos[1],
-			clipSpacePos[2]
-		};
 
 		//透视除法
 		for (int i = 0; i < 3; i++)
@@ -306,11 +300,20 @@ void Rasterizer::draw(std::vector<std::shared_ptr<Triangle>>& TriangleList)
 
 		//屏幕裁剪
 		std::vector<Triangle> NewTriangle = SuthHodgClipTriangle(NewTri, clipSpacePos);
-		for (auto sjx : NewTriangle)
+		for (int i=0;i< NewTriangle.size();i++)
 		{
+			Triangle new_tri = NewTriangle[i];
 			//rasterize_wireframe(sjx);
 			//rasterize_edge_walking(sjx, clipSpacePos_Array);
-			rasterize_edge_equation(sjx, clipSpacePos_Array);
+			std::vector<glm::vec4> v;
+			if (!clipSpacePos.empty())
+			{
+				v.emplace_back(clipSpacePos[0]);
+				v.emplace_back(clipSpacePos[(i + 1) % clipSpacePos.size()]);
+				v.emplace_back(clipSpacePos[(i + 2) % clipSpacePos.size()]);
+			}
+
+			rasterize_edge_equation(new_tri, v);
 		}
 	}
 
@@ -439,7 +442,7 @@ void Rasterizer::CodeClip(Line& line, std::vector<glm::vec4> clipSpacePos)
 	}
 }
 
-std::vector<Triangle> Rasterizer::SuthHodgClipTriangle(Triangle& triangle, const std::vector<glm::vec4>& clipSpacePos)
+std::vector<Triangle> Rasterizer::SuthHodgClipTriangle(Triangle& triangle, std::vector<glm::vec4>& clipSpacePos)
 {
 	//存储屏幕的四个拐角点，使用逆时针顺序存储
 	std::vector<glm::vec2> screenIntersection = { glm::vec2(0,0),
@@ -452,21 +455,19 @@ std::vector<Triangle> Rasterizer::SuthHodgClipTriangle(Triangle& triangle, const
 		triangle.vertex[1],
 		triangle.vertex[2]
 	};
-		
-	std::vector<glm::vec4> clipSpacePos_ = clipSpacePos;
 
 	//裁剪后的点
 	for (int i = 0; i < 4; i++)
-		SuthHodgClip(poly_points, screenIntersection[i], screenIntersection[(i + 1) % 4], clipSpacePos_);
+		SuthHodgClip(poly_points, screenIntersection[i], screenIntersection[(i + 1) % 4], clipSpacePos);
 
 	std::vector<Triangle> triangles;
 
 	if (!poly_points.empty())
 	{
-		for (int i = 1; i < poly_points.size() - 1; i++)
+		for (int i = 0; i < poly_points.size(); i++)
 		{
-			triangles.emplace_back(Triangle(poly_points[0], poly_points[i % poly_points.size()],
-				poly_points[(i + 1) % poly_points.size()]));
+			triangles.emplace_back(Triangle(poly_points[0], poly_points[(i + 1) % poly_points.size()],
+				poly_points[(i + 2) % poly_points.size()]));
 		}
 	}
 	
@@ -573,7 +574,7 @@ glm::mat4 Rasterizer::Model_Matrix()
 {
 	glm::mat4 matrix(1.0f);
 	float angle = glm::radians(theta);
-	glm::vec3 axis(1.0f, 1.0f, -1.0f);
+	glm::vec3 axis(1.0f, 1.0f, 1.0f);
 	matrix = glm::rotate(matrix, angle, axis);
 	//matrix = glm::translate(matrix, glm::vec3(5, 0, 0));
 

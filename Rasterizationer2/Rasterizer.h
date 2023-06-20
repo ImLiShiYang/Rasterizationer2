@@ -37,7 +37,7 @@ public:
 	void CodeClip(Line& line, std::vector<glm::vec4> clipSpacePos);
 
 	//Sutherland-Hodgman多边形裁切算法
-	std::vector<Triangle> SuthHodgClipTriangle(Triangle& triangle, const std::vector<glm::vec4>& clipSpacePos);
+	std::vector<Triangle> SuthHodgClipTriangle(Triangle& triangle, std::vector<glm::vec4>& clipSpacePos);
 	//此函数根据裁剪区域的一个裁剪边,裁剪所有边缘
 	void SuthHodgClip(std::vector<Vertex>& poly_points, glm::vec2 p1, glm::vec2 p2, std::vector<glm::vec4>& clipSpacePos);
 
@@ -57,7 +57,7 @@ public:
 
 	bool insideTriangle(const Triangle& m, const float x, const float y);
 	void rasterize_edge_walking(const Triangle& m, const std::array<glm::vec4, 3>& clipSpacePos_Array);
-	void rasterize_edge_equation(const Triangle& m, const std::array<glm::vec4, 3>& clipSpacePos);
+	void rasterize_edge_equation(const Triangle& m, std::vector<glm::vec4>& clipSpacePos);
 
 private:
 	TGAImage image;

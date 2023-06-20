@@ -43,8 +43,8 @@ void main()
 
 	while (angle < 360)
 	{
-		frame++;
-		std::string filename = "result\\out-put" + std::to_string(angle);
+		
+		std::string filename = "result\\output" + std::to_string(frame);
 
 		TGAImage image(800, 600, TGAImage::RGB);
 
@@ -55,7 +55,7 @@ void main()
 		rast.output();
 
         std::cout << "frame:" << frame << std::endl;
-
+        frame++;
         angle += 5;
 	}
 
