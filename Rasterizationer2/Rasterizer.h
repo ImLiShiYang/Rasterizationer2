@@ -83,6 +83,9 @@ private:
 	//三角形顶点顺序
 	TriangleVertexOrder vertexOrder = TriangleVertexOrder::counterclockwise;
 	bool backCulling = false;
+
+	std::vector<float> z_buffer;
+	int get_index(int x, int y);
 };
 
 

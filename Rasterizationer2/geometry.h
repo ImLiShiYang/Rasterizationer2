@@ -56,6 +56,14 @@ inline Vertex perspectiveLerp(const Vertex& v1, const Vertex& v2, const float t,
 	return lerp(v1, v2, correctLerp);
 }
 
+//透视矫正插值
+inline float perspectiveLerp(const float t, const glm::vec4& v1c, const glm::vec4& v2c)
+{
+	float correctLerp = t * v2c.w / ((1 - t) * v1c.w + t * v2c.w);
+	return correctLerp;
+}
+
+
 inline Vertex barycentric_coordinates_perspective(const Vertex& pos, const Vertex& p0, const Vertex& p1, const Vertex& p2,
 	std::vector<glm::vec4>& clipSpacePos)
 {
@@ -149,12 +157,6 @@ inline Vertex barycentric_coordinates(const Vertex& pos, const Vertex& p0, const
 
 
 
-//透视矫正插值
-inline float perspectiveLerp(const float t, const glm::vec4& v1c, const glm::vec4& v2c)
-{
-	float correctLerp = t * v2c.w / ((1 - t) * v1c.w + t * v2c.w);
-	return correctLerp;
-}
 
 // 返回两条线的交点的x值 
 inline float x_intersect(glm::vec2 p1, glm::vec2 p2, glm::vec2 p3, glm::vec2 p4)

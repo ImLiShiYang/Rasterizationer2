@@ -13,6 +13,9 @@ Rasterizer::Rasterizer(std::string file, TGAImage img):filename(file),image(img)
 
 	cameraPos = glm::vec3(0, 0, 2);
 	theta = 0;
+
+	z_buffer.resize(img.width() * img.height());
+	std::fill(z_buffer.begin(), z_buffer.end(), -std::numeric_limits<float>::infinity());
 }
 
 void Rasterizer::draw_line(glm::vec3 v0, glm::vec3 v1)
@@ -222,10 +225,19 @@ void Rasterizer::rasterize_edge_equation(const Triangle& m, std::vector<glm::vec
 			{
 				//Vertex pixel= barycentric_coordinates(pos, m.vertex[0], m.vertex[1], m.vertex[2]);
 				Vertex pixel = barycentric_coordinates_perspective(pos, m.vertex[0], m.vertex[1], m.vertex[2], clipSpacePos);
-				image.set(x, y, pixel.vertexColor);
+				if (pixel.vertex.z > z_buffer[get_index(pos.vertex.x, pos.vertex.y)])
+				{
+					z_buffer[get_index(pos.vertex.x, pos.vertex.y)] = pixel.vertex.z;
+					image.set(x, y, pixel.vertexColor);
+				}
 			}
 		}
 	}
+}
+
+int Rasterizer::get_index(int x, int y)
+{
+	return y * width + x;
 }
 
 void Rasterizer::draw(std::vector<std::shared_ptr<Triangle>>& TriangleList)
@@ -574,7 +586,7 @@ glm::mat4 Rasterizer::Model_Matrix()
 {
 	glm::mat4 matrix(1.0f);
 	float angle = glm::radians(theta);
-	glm::vec3 axis(1.0f, 1.0f, 1.0f);
+	glm::vec3 axis(1.0f, 1.0f, 0.0f);
 	matrix = glm::rotate(matrix, angle, axis);
 	//matrix = glm::translate(matrix, glm::vec3(5, 0, 0));
 
