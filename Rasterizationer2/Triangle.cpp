@@ -1,6 +1,7 @@
 #include "Triangle.h"
 #include <iostream>
 
+
 Triangle::Triangle()
 {
 }
@@ -72,6 +73,8 @@ void Triangle::setVertexPos(glm::vec4 newVert[3])
 	vertex[1].vertex = newVert[1];
 	vertex[2].vertex = newVert[2];
 }
+
+
 
 //根据y值排序，使得v1.y>v2.y>v3.y
 /*

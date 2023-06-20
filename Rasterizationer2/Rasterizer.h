@@ -54,7 +54,8 @@ public:
 	void TurnOffBackCulling();
 	void SetVertexOrder(const TriangleVertexOrder& t);
 	TriangleVertexOrder GetVertexOrder();
-	//, const std::array<glm::vec4, 3>& clipSpacePos
+
+	bool insideTriangle(const Triangle& m, const float x, const float y);
 	void rasterize_edge_walking(const Triangle& m, const std::array<glm::vec4, 3>& clipSpacePos_Array);
 	void rasterize_edge_equation(const Triangle& m, const std::array<glm::vec4, 3>& clipSpacePos);
 

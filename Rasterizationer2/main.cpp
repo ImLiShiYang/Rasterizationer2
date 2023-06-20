@@ -14,9 +14,14 @@ void main()
     
     {
         glm::vec3 v[3];
+        /*v[0] = glm::vec3(561, 600, -2);
+        v[1] = glm::vec3(498, 600, -2);
+        v[2] = glm::vec3(688, 361, -2);*/
+
         v[0] = glm::vec3(2, 0, -2);
         v[1] = glm::vec3(0, 2, -2);
         v[2] = glm::vec3(-2, 0, -2);
+
         std::shared_ptr<Triangle> t1(new Triangle(v));
         t1->setColor(0, TGAColor(255, 0, 0));
         t1->setColor(1, TGAColor(0, 255, 0));
@@ -39,7 +44,7 @@ void main()
 	while (angle < 360)
 	{
 		frame++;
-		std::string filename = "result\\output" + std::to_string(frame);
+		std::string filename = "result\\out-put" + std::to_string(angle);
 
 		TGAImage image(800, 600, TGAImage::RGB);
 

@@ -74,6 +74,53 @@ TriangleVertexOrder Rasterizer::GetVertexOrder()
 	return v;
 }
 
+//左上角规则
+static float TopLeftRules(const float side, const glm::vec4& v1, const glm::vec4& v2, const TriangleVertexOrder& Order)
+{
+	if (Order == TriangleVertexOrder::counterclockwise)
+	{
+		if (std::fabs(side) < 1e-6)
+		{
+			//在三角形逆序的情况下，v1.y > v2.y 说明是左边
+			//v1.y == v2.y && v1.x > v2.x说明是在上边
+			return (v1.y > v2.y || (v1.y == v2.y && v1.x > v2.x)) ? 0 : -1;
+		}
+		else
+		{
+			return side;
+		}
+	}
+	else
+	{
+		if (std::fabs(side) < 1e-6)
+		{
+			//顺时针情况下
+			return (v1.y < v2.y || (v1.y == v2.y && v1.x < v2.x)) ? 0 : -1;
+		}
+		else
+		{
+			return side;
+		}
+	}
+}
+
+bool Rasterizer::insideTriangle(const Triangle& m, const float x, const float y)
+{
+	glm::vec4 v1 = m.vertex[0].vertex;
+	glm::vec4 v2 = m.vertex[1].vertex;
+	glm::vec4 v3 = m.vertex[2].vertex;
+	//还是二维向量叉积原理
+	float side1 = (v2.y - v1.y) * x + (v1.x - v2.x) * y + v2.x * v1.y - v1.x * v2.y;
+	float side2 = (v3.y - v2.y) * x + (v2.x - v3.x) * y + v3.x * v2.y - v2.x * v3.y;
+	float side3 = (v1.y - v3.y) * x + (v3.x - v1.x) * y + v1.x * v3.y - v3.x * v1.y;
+
+	side1 = TopLeftRules(side1, v1, v2, vertexOrder);
+	side2 = TopLeftRules(side2, v2, v3, vertexOrder);
+	side3 = TopLeftRules(side3, v3, v1, vertexOrder);
+	//保证顺时针和逆时针两种情况
+	return (side1 >= 0 && side2 >= 0 && side3 >= 0) || (side1 <= 0 && side2 <= 0 && side3 <= 0);
+}
+
 //const std::array<glm::vec4, 3>& clipSpacePos
 void Rasterizer::rasterize_edge_walking(const Triangle& m , const std::array<glm::vec4, 3>& clipSpacePos_Array)
 {
@@ -125,7 +172,7 @@ void Rasterizer::rasterize_edge_walking(const Triangle& m , const std::array<glm
 			float pixellerp = ((float)x + 0.5f - shortVert.vertex.x) / (longVert.vertex.x - shortVert.vertex.x);
 			Vertex pixel = perspectiveLerp(shortVert, longVert, pixellerp, shortVert_per.vertex, longVert_per.vertex);
 
-			image.set(x, y, pixel.vertexColor);
+			image.set(x, y, pixel.vertexColor);    
 		}
 	}
 
@@ -161,17 +208,35 @@ void Rasterizer::rasterize_edge_walking(const Triangle& m , const std::array<glm
 
 void Rasterizer::rasterize_edge_equation(const Triangle& m, const std::array<glm::vec4, 3>& clipSpacePos)
 {
-
+	int leftEdge = std::floor(std::min({ m.vertex[0].vertex.x, m.vertex[1].vertex.x, m.vertex[2].vertex.x }));
+	int rightEdge = std::ceil(std::max({ m.vertex[0].vertex.x, m.vertex[1].vertex.x, m.vertex[2].vertex.x }));
+	int bottomEdge = std::floor(std::min({ m.vertex[0].vertex.y, m.vertex[1].vertex.y, m.vertex[2].vertex.y }));
+	int TopEdge = std::ceil(std::max({ m.vertex[0].vertex.y, m.vertex[1].vertex.y, m.vertex[2].vertex.y }));
+	 
+	for (int y = bottomEdge; y < TopEdge; y++) 
+	{
+		for (int x = leftEdge; x < rightEdge; x++) 
+		{
+			Vertex pos(glm::vec4((float)x + 0.5, (float)y + 0.5, 0.f, 0.f));
+			if (insideTriangle(m, pos.vertex.x, pos.vertex.y))
+			{
+				Vertex pixel= barycentric_coordinates(pos, m.vertex[0], m.vertex[1], m.vertex[2]);
+				//Vertex pixel = barycentricPerspectiveLerp(m, glm::vec2((float)x + 0.5, (float)y + 0.5));
+				image.set(x, y, pixel.vertexColor);
+			}
+		}
+	}
 }
 
 void Rasterizer::draw(std::vector<std::shared_ptr<Triangle>>& TriangleList)
 {
-	glm::mat4 MV = View_Matrix(cameraPos, glm::vec3(0.0f), glm::vec3(0, 1.0f, 0)) * Model_Matrix();
+	glm::mat4 MV = View_Matrix(cameraPos, glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0, 1.0f, 0)) * Model_Matrix();
 	glm::mat4 P = Perspective_Matrix(zneardis, zfardis, fovY, aspect);
 
 
 	for (std::shared_ptr<Triangle> t : TriangleList)
 	{
+		/**/
 		//从局部坐标转换到相机坐标
 		std::vector<glm::vec4> vert
 		{
@@ -227,7 +292,7 @@ void Rasterizer::draw(std::vector<std::shared_ptr<Triangle>>& TriangleList)
 		{
 			vert[i] = Viewport_Matrix(width, height) * vert[i];
 		}
-
+		
 		Triangle NewTri = *t;
 		for (size_t i = 0; i < 3; i++)
 		{
@@ -237,13 +302,15 @@ void Rasterizer::draw(std::vector<std::shared_ptr<Triangle>>& TriangleList)
 			//NewTri.setNormal(i, normal[i]);
 		}
 
+		//std::array<glm::vec4, 3> clipSpacePos_Array;
 
 		//屏幕裁剪
 		std::vector<Triangle> NewTriangle = SuthHodgClipTriangle(NewTri, clipSpacePos);
 		for (auto sjx : NewTriangle)
 		{
 			//rasterize_wireframe(sjx);
-			rasterize_edge_walking(sjx, clipSpacePos_Array);
+			//rasterize_edge_walking(sjx, clipSpacePos_Array);
+			rasterize_edge_equation(sjx, clipSpacePos_Array);
 		}
 	}
 
@@ -506,7 +573,7 @@ glm::mat4 Rasterizer::Model_Matrix()
 {
 	glm::mat4 matrix(1.0f);
 	float angle = glm::radians(theta);
-	glm::vec3 axis(.0f, 1.0f, 1.0f);
+	glm::vec3 axis(1.0f, 1.0f, -1.0f);
 	matrix = glm::rotate(matrix, angle, axis);
 	//matrix = glm::translate(matrix, glm::vec3(5, 0, 0));
 
