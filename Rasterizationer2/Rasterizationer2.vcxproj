@@ -128,6 +128,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="geometry.h" />
+    <ClInclude Include="material.h" />
+    <ClInclude Include="OBJ_load.h" />
     <ClInclude Include="Rasterizer.h" />
     <ClInclude Include="tgaimage.h" />
     <ClInclude Include="Triangle.h" />
@@ -135,6 +137,8 @@
   <ItemGroup>
     <ClCompile Include="geometry.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="material.cpp" />
+    <ClCompile Include="OBJ_load.cpp" />
     <ClCompile Include="Rasterizer.cpp" />
     <ClCompile Include="tgaimage.cpp" />
     <ClCompile Include="Triangle.cpp" />

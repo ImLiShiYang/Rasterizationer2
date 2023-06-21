@@ -17,6 +17,7 @@ public:
 	Triangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3);
 	Triangle(const Vertex& v1, const Vertex& v2, const Vertex& v3);
 	Triangle(glm::vec3 v[3]);
+	Triangle(Vertex v[3]);
 
 	void setVertexs(int index, const Vertex& v);
 	void setVertexs(const Vertex v[3]);

@@ -11,23 +11,37 @@
 class Vertex
 {
 public:
-	Vertex() :vertex(), vertexColor(), normal() {}
+	Vertex() :vertex(), vertexColor(), normal(), texcoord(), worldPos() {}
 		
-	Vertex(glm::vec4 vertex):vertex(vertex), vertexColor(), normal() {}
+	Vertex(glm::vec4 vertex):vertex(vertex), vertexColor(), normal(), texcoord(), worldPos() {}
 
-	Vertex(glm::vec4 vertex, TGAColor vertexColor, glm::vec4 normal) :
-		vertex(vertex), vertexColor(vertexColor), normal(normal) {}
+	Vertex(glm::vec4 vertex, TGAColor vertexColor, glm::vec4 normal,glm::vec2 tex) :
+		vertex(vertex), vertexColor(vertexColor), normal(normal),texcoord(tex), worldPos(){}
+
+	Vertex(const glm::vec3& vertex,
+		const TGAColor& vertexColor,
+		const glm::vec3& normal,
+		const glm::vec2& texcoord) :
+		vertex(vertex.x, vertex.y, vertex.z, 1), vertexColor(vertexColor),
+		normal(normal.x, normal.y, normal.z, 0), texcoord(texcoord) {}
+
+	Vertex(glm::vec4 vertex, TGAColor vertexColor, glm::vec4 normal, glm::vec2 tex,glm::vec4 worldPos) :
+		vertex(vertex), vertexColor(vertexColor), normal(normal), texcoord(tex), worldPos(worldPos){}
 
 	Vertex operator+(const Vertex& v) const {
-		return Vertex(vertex + v.vertex, vertexColor + v.vertexColor, normal + v.normal);
+		return Vertex(vertex + v.vertex, vertexColor + v.vertexColor,
+			normal + v.normal, texcoord + v.texcoord, worldPos + v.worldPos);
 	}
+
 	Vertex operator*(const float x) const {
-		return Vertex(vertex * x, vertexColor * x, normal * x);
+		return Vertex(vertex * x, vertexColor * x, normal * x, texcoord * x, worldPos * x);
 	}
 	Vertex& operator=(const Vertex& v) {
 		vertex = v.vertex;
 		vertexColor = v.vertexColor;
 		normal = v.normal;
+		texcoord = v.texcoord;
+		worldPos = v.worldPos;
 		return *this;
 	}
 
@@ -35,6 +49,8 @@ public:
 	glm::vec4 vertex;
 	TGAColor vertexColor;
 	glm::vec4 normal;
+	glm::vec2 texcoord;
+	glm::vec4 worldPos;
 };
 
 inline glm::vec4 lerp(glm::vec4 v1, glm::vec4 v2, float t)
@@ -42,11 +58,19 @@ inline glm::vec4 lerp(glm::vec4 v1, glm::vec4 v2, float t)
 	return v1 + (v2 - v1) * t;
 }
 
+inline glm::vec2 lerp(glm::vec2 v1, glm::vec2 v2, float t)
+{
+	return v1 + (v2 - v1) * t;
+}
+
+
 inline Vertex lerp(const Vertex& v1, const Vertex& v2, const float t) {
 	return Vertex{
 		lerp(v1.vertex, v2.vertex, t),
 		ColorLerp(v1.vertexColor, v2.vertexColor, t),
-		lerp(v1.normal, v2.normal, t)
+		lerp(v1.normal, v2.normal, t),
+		lerp(v1.texcoord, v2.texcoord, t),
+		lerp(v1.worldPos, v2.worldPos, t)
 	};
 }
 

@@ -1,5 +1,6 @@
 #include <iostream>
 #include "Rasterizer.h"
+#include "OBJ_load.h"
 #include <string>
 #include <chrono>
 
@@ -9,14 +10,11 @@ void main()
 	float angle = 0;
     auto begin = std::chrono::steady_clock::now();
 
-    std::vector<std::shared_ptr<Triangle>> TriangleList;
+    std::vector<Triangle> TriangleList;
 
-    
+    /*
     {
         glm::vec3 v[3];
-        /*v[0] = glm::vec3(561, 600, -2);
-        v[1] = glm::vec3(498, 600, -2);
-        v[2] = glm::vec3(688, 361, -2);*/
 
         v[0] = glm::vec3(2, 0, -2);
         v[1] = glm::vec3(0, 2, -2);
@@ -39,11 +37,21 @@ void main()
         t1->setColor(1, TGAColor(0, 255, 0));
         t1->setColor(2, TGAColor(0, 0, 255));
         TriangleList.push_back(t1);
+    }*/
+
+    std::vector<std::shared_ptr<Mesh>> MeshList;
+    Model model("obj/mary/", "Marry.obj");
+    for (auto& o : model.objects)
+    {
+        for (auto& m : o.meshes)
+        {
+            std::shared_ptr<Mesh> m1 = std::make_shared<Mesh>(m);
+            MeshList.push_back(m1);
+        }
     }
 
 	while (angle < 360)
 	{
-		
 		std::string filename = "result\\output" + std::to_string(frame);
 
 		TGAImage image(800, 600, TGAImage::RGB);
@@ -51,7 +59,8 @@ void main()
 		Rasterizer rast(filename, image);
 		rast.SetTheta(angle);
         rast.TurnOnBackCulling();
-		rast.draw(TriangleList);
+        rast.SetCamera(glm::vec3(0, 0.5, 2.2));
+		rast.draw(MeshList);
 		rast.output();
 
         std::cout << "frame:" << frame << std::endl;

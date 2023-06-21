@@ -13,6 +13,7 @@ Rasterizer::Rasterizer(std::string file, TGAImage img):filename(file),image(img)
 
 	cameraPos = glm::vec3(0, 0, 2);
 	theta = 0;
+	rotateAxis= glm::vec3(0, 1, 0);
 
 	z_buffer.resize(img.width() * img.height());
 	std::fill(z_buffer.begin(), z_buffer.end(), -std::numeric_limits<float>::infinity());
@@ -40,9 +41,9 @@ void Rasterizer::draw_line(glm::vec3 v0, glm::vec3 v1)
 		float t = (float)(x - x0) / (x1 - x0);
 		int y = y0 + t * (y1 - y0);
 		if (flag)
-			image.set(y, x, red);
+			image.set(y, x, white);
 		else
-			image.set(x, y, red);
+			image.set(x, y, white);
 	}
 }
 
@@ -240,94 +241,98 @@ int Rasterizer::get_index(int x, int y)
 	return y * width + x;
 }
 
-void Rasterizer::draw(std::vector<std::shared_ptr<Triangle>>& TriangleList)
+void Rasterizer::draw(std::vector<std::shared_ptr<Mesh>> MeshList)
 {
-	glm::mat4 MV = View_Matrix(cameraPos, glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0, 1.0f, 0)) * Model_Matrix();
+	glm::mat4 MV = View_Matrix(cameraPos, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0, 1.0f, 0)) * Model_Matrix();
 	glm::mat4 P = Perspective_Matrix(zneardis, zfardis, fovY, aspect);
 
-
-	for (std::shared_ptr<Triangle> t : TriangleList)
+	for (std::shared_ptr<Mesh> m : MeshList)
 	{
-		/**/
-		//从局部坐标转换到相机坐标
-		std::vector<glm::vec4> vert
+		for (Triangle t : m->primitives)
 		{
-			MV * t->vertex[0].vertex,
-			MV * t->vertex[1].vertex,
-			MV * t->vertex[2].vertex
-		};
-
-		if (backCulling)
-		{
-			glm::vec4 v1 = vert[1] - vert[0], v2 = vert[2] - vert[1];
-			glm::vec3 v = glm::cross(glm::vec3(v1), glm::vec3(v2));
-			glm::vec3 gaze(vert[0]);
-			if (vertexOrder == TriangleVertexOrder::counterclockwise)
+			/**/
+			//从局部坐标转换到相机坐标
+			std::vector<glm::vec4> vert
 			{
-				if (glm::dot(v, gaze) >= 0)
-					return;
-			}
-			else
+				MV * t.vertex[0].vertex,
+				MV * t.vertex[1].vertex,
+				MV * t.vertex[2].vertex
+			};
+
+			if (backCulling)
 			{
-				if (glm::dot(v, gaze) <= 0)
-					return;
-			}
-		}
-
-		//从相机空间转换到齐次裁剪空间
-		for (int i = 0; i < 3; i++)
-		{
-			vert[i] = P * vert[i];
-		}
-		
-		//简单处理的齐次裁剪，超出范围的三角形直接丢弃
-		for (int i = 0; i < 3; i++)
-		{
-			if (vert[i].w > -zneardis || vert[i].w < -zfardis)
-				return;
-		}
-		std::vector<glm::vec4> clipSpacePos = vert;
-
-		//透视除法
-		for (int i = 0; i < 3; i++)
-		{
-			vert[i] /= vert[i].w;
-		}
-		//视口变换
-		for (int i = 0; i < 3; i++)
-		{
-			vert[i] = Viewport_Matrix(width, height) * vert[i];
-		}
-		
-		Triangle NewTri = *t;
-		for (size_t i = 0; i < 3; i++)
-		{
-			//NewTriangle的顶点是屏幕空间下的坐标
-			NewTri.setVertexPos(i, vert[i]);
-			NewTri.setColor(i, t->vertex[i].vertexColor);
-			//NewTri.setNormal(i, normal[i]);
-		}
-
-		//std::array<glm::vec4, 3> clipSpacePos_Array;
-
-		//屏幕裁剪
-		std::vector<Triangle> NewTriangle = SuthHodgClipTriangle(NewTri, clipSpacePos);
-		for (int i=0;i< NewTriangle.size();i++)
-		{
-			Triangle new_tri = NewTriangle[i];
-			//rasterize_wireframe(sjx);
-			//rasterize_edge_walking(sjx, clipSpacePos_Array);
-			std::vector<glm::vec4> v;
-			if (!clipSpacePos.empty())
-			{
-				v.emplace_back(clipSpacePos[0]);
-				v.emplace_back(clipSpacePos[(i + 1) % clipSpacePos.size()]);
-				v.emplace_back(clipSpacePos[(i + 2) % clipSpacePos.size()]);
+				glm::vec4 v1 = vert[1] - vert[0], v2 = vert[2] - vert[1];
+				glm::vec3 v = glm::cross(glm::vec3(v1), glm::vec3(v2));
+				glm::vec3 gaze(vert[0]);
+				if (vertexOrder == TriangleVertexOrder::counterclockwise)
+				{
+					if (glm::dot(v, gaze) >= 0)
+						continue;
+				}
+				else
+				{
+					if (glm::dot(v, gaze) <= 0)
+						continue;
+				}
 			}
 
-			rasterize_edge_equation(new_tri, v);
+			//从相机空间转换到齐次裁剪空间
+			for (int i = 0; i < 3; i++)
+			{
+				vert[i] = P * vert[i];
+			}
+
+			//简单处理的齐次裁剪，超出范围的三角形直接丢弃
+			for (int i = 0; i < 3; i++)
+			{
+				if (vert[i].w > -zneardis || vert[i].w < -zfardis)
+					continue;
+			}
+			std::vector<glm::vec4> clipSpacePos = vert;
+
+			//透视除法
+			for (int i = 0; i < 3; i++)
+			{
+				vert[i] /= vert[i].w;
+			}
+			//视口变换
+			for (int i = 0; i < 3; i++)
+			{
+				vert[i] = Viewport_Matrix(width, height) * vert[i];
+			}
+
+			Triangle NewTri = t;
+			for (size_t i = 0; i < 3; i++)
+			{
+				//NewTriangle的顶点是屏幕空间下的坐标
+				NewTri.setVertexPos(i, vert[i]);
+				NewTri.setColor(i, t.vertex[i].vertexColor);
+				//NewTri.setNormal(i, normal[i]);
+			}
+
+			//std::array<glm::vec4, 3> clipSpacePos_Array;
+
+			//屏幕裁剪
+			std::vector<Triangle> NewTriangle = SuthHodgClipTriangle(NewTri, clipSpacePos);
+			for (int i = 0; i < NewTriangle.size(); i++)
+			{
+				Triangle new_tri = NewTriangle[i];
+				
+				std::vector<glm::vec4> v;
+				if (!clipSpacePos.empty())
+				{
+					v.emplace_back(clipSpacePos[0]);
+					v.emplace_back(clipSpacePos[(i + 1) % clipSpacePos.size()]);
+					v.emplace_back(clipSpacePos[(i + 2) % clipSpacePos.size()]);
+				}
+
+				//rasterize_edge_equation(new_tri, v);
+				rasterize_wireframe(new_tri);
+				//rasterize_edge_walking(sjx, clipSpacePos_Array);
+			}
 		}
 	}
+	
 
 }
 
@@ -586,9 +591,9 @@ glm::mat4 Rasterizer::Model_Matrix()
 {
 	glm::mat4 matrix(1.0f);
 	float angle = glm::radians(theta);
-	glm::vec3 axis(1.0f, 1.0f, 0.0f);
+	glm::vec3 axis(0.0f, 1.0f, 0.0f);
 	matrix = glm::rotate(matrix, angle, axis);
-	//matrix = glm::translate(matrix, glm::vec3(5, 0, 0));
+	matrix = glm::translate(matrix, glm::vec3(0, -2, 0));
 
 	return matrix;
 }
@@ -664,4 +669,14 @@ glm::mat4 Rasterizer::Viewport_Matrix(float width, float height)
 	matrix[3][1] = height / 2;
 
 	return matrix;
+}
+
+void Rasterizer::SetCamera(glm::vec3 camera)
+{
+	cameraPos = camera;
+}
+
+void Rasterizer::SetRotateAxis(glm::vec3 Axis)
+{
+	rotateAxis = Axis;
 }

@@ -24,6 +24,13 @@ Triangle::Triangle(const Vertex& v1, const Vertex& v2, const Vertex& v3)
 	vertex[2] = v3;
 }
 
+Triangle::Triangle(Vertex v[3])
+{
+	vertex[0] = v[0];
+	vertex[1] = v[1];
+	vertex[2] = v[2];
+}
+
 Triangle::Triangle(glm::vec3 v[3])
 {
 	for (size_t i = 0; i < 3; i++)
