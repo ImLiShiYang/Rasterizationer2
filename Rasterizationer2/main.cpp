@@ -12,35 +12,9 @@ void main()
 
     std::vector<Triangle> TriangleList;
 
-    /*
-    {
-        glm::vec3 v[3];
-
-        v[0] = glm::vec3(2, 0, -2);
-        v[1] = glm::vec3(0, 2, -2);
-        v[2] = glm::vec3(-2, 0, -2);
-
-        std::shared_ptr<Triangle> t1(new Triangle(v));
-        t1->setColor(0, TGAColor(255, 0, 0));
-        t1->setColor(1, TGAColor(0, 255, 0));
-        t1->setColor(2, TGAColor(0, 0, 255));
-        TriangleList.push_back(t1);
-    }
-    
-    {
-        glm::vec3 v[3];
-        v[0] = glm::vec3(3.5, -1, -5);
-        v[1] = glm::vec3(2.5, 1.5, -5);
-        v[2] = glm::vec3(-1, 0.5, -5);
-        std::shared_ptr<Triangle> t1(new Triangle(v));
-        t1->setColor(0, TGAColor(255, 0, 0));
-        t1->setColor(1, TGAColor(0, 255, 0));
-        t1->setColor(2, TGAColor(0, 0, 255));
-        TriangleList.push_back(t1);
-    }*/
-
     std::vector<std::shared_ptr<Mesh>> MeshList;
     Model model("obj/mary/", "Marry.obj");
+    //Model model("obj/fighter/", "fighter.obj");
     for (auto& o : model.objects)
     {
         for (auto& m : o.meshes)
@@ -58,8 +32,9 @@ void main()
 
 		Rasterizer rast(filename, image);
 		rast.SetTheta(angle);
-        rast.TurnOnBackCulling();
+        rast.SetRotateAxis(glm::vec3(0, 1, 0));
         rast.SetCamera(glm::vec3(0, 0.5, 2.2));
+        rast.TurnOnBackCulling();
 		rast.draw(MeshList);
 		rast.output();
 

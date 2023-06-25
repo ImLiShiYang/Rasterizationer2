@@ -87,9 +87,32 @@ inline float perspectiveLerp(const float t, const glm::vec4& v1c, const glm::vec
 	return correctLerp;
 }
 
+/*
+inline Vertex barycentric_coordinates_perspective2(const Triangle& t, const glm::vec2& position_pixel, std::vector<glm::vec4>& v)
+{
+	Vertex v1 = t.vertex[0]; Vertex v2 = t.vertex[1]; Vertex v3 = t.vertex[2];
+	float xa = v1.vertex.x; float ya = v1.vertex.y;
+	float xb = v2.vertex.x; float yb = v2.vertex.y;
+	float xc = v3.vertex.x; float yc = v3.vertex.y;
+	float x = position_pixel.x; float y = position_pixel.y;
+
+	float g = ((ya - yb) * x + (xb - xa) * y + xa * yb - xb * ya) /
+		((ya - yb) * xc + (xb - xa) * yc + xa * yb - xb * ya);
+	float b = ((ya - yc) * x + (xc - xa) * y + xa * yc - xc * ya) /
+		((ya - yc) * xb + (xc - xa) * yb + xa * yc - xc * ya);
+	float a = 1 - b - g;
+
+	float W = 1.0f / (a / v[0].w + b / v[1].w + g / v[2].w);
+	float beta = (b / v[1].w) * W;
+	float gamma = (g / v[2].w) * W;
+	float alpha = 1.0f - beta - gamma;
+
+	return v1 * alpha + v2 * beta + v3 * gamma;
+}
+*/
 
 inline Vertex barycentric_coordinates_perspective(const Vertex& pos, const Vertex& p0, const Vertex& p1, const Vertex& p2,
-	std::vector<glm::vec4>& clipSpacePos)
+	std::vector<glm::vec4>& v)
 {
 	/*
 	* 这里使用面积比的方式来求解重心坐标，
@@ -106,7 +129,7 @@ inline Vertex barycentric_coordinates_perspective(const Vertex& pos, const Verte
 	//判断二维三角形是否共线，也是使用向量叉积，只不过是二维，
 	//所以Ay * Bz - Az * By, Az * Bx - Ax * Bz都等于0，就剩下Ax * By - Ay * Bx
 	//然后化简得到公式代入计算
-
+	/*
 	glm::vec3 e0 = glm::vec3(p1.vertex.x - p0.vertex.x, p1.vertex.y - p0.vertex.y, 0.0f);
 	glm::vec3 e1 = glm::vec3(p2.vertex.x - p1.vertex.x, p2.vertex.y - p1.vertex.y, 0.0f);
 	glm::vec3 e2 = glm::vec3(p0.vertex.x - p2.vertex.x, p0.vertex.y - p2.vertex.y, 0.0f);
@@ -135,8 +158,34 @@ inline Vertex barycentric_coordinates_perspective(const Vertex& pos, const Verte
 		return Vertex(p0 * alpha + p1 * belta + p2 * gamma);
 	}
 	return Vertex();
+	*/
+
+	float xa = p0.vertex.x; float ya = p0.vertex.y;
+	float xb = p1.vertex.x; float yb = p1.vertex.y;
+	float xc = p2.vertex.x; float yc = p2.vertex.y;
+	float x = pos.vertex.x; float y = pos.vertex.y;
+
+	float g = ((ya - yb) * x + (xb - xa) * y + xa * yb - xb * ya) /
+		((ya - yb) * xc + (xb - xa) * yc + xa * yb - xb * ya);
+	float b = ((ya - yc) * x + (xc - xa) * y + xa * yc - xc * ya) /
+		((ya - yc) * xb + (xc - xa) * yb + xa * yc - xc * ya);
+	float a = 1 - b - g;
+
+	float W = 1.0f / (a / v[0].w + b / v[1].w + g / v[2].w);
+	float beta = (b / v[1].w) * W;
+	float gamma = (g / v[2].w) * W;
+	float alpha = 1.0f - beta - gamma;
+
+	return p0 * alpha + p1 * beta + p2 * gamma;
+
 }
 
+//法线变换矩阵
+inline glm::vec4 GetNormal(glm::vec4 normal,glm::mat4 MV)
+{
+	MV = glm::transpose(glm::inverse(MV));
+	return MV * normal;
+}
 
 // 计算重心坐标
 inline Vertex barycentric_coordinates(const Vertex& pos, const Vertex& p0, const Vertex& p1, const Vertex& p2)

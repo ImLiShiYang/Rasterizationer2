@@ -43,23 +43,6 @@ public:
 	Vertex vertex[3];
 };
 
-inline Vertex barycentricPerspectiveLerp(const Triangle& t, const glm::vec2& pixel)
-{
-	Vertex v1 = t.vertex[0]; Vertex v2 = t.vertex[1]; Vertex v3 = t.vertex[2];
-	float xa = v1.vertex.x; float ya = v1.vertex.y;
-	float xb = v2.vertex.x; float yb = v2.vertex.y;
-	float xc = v3.vertex.x; float yc = v3.vertex.y;
-	float x = pixel.x; float y = pixel.y;
-
-	float gamma = ((ya - yb) * x + (xb - xa) * y + xa * yb - xb * ya) /
-		((ya - yb) * xc + (xb - xa) * yc + xa * yb - xb * ya);
-	float beta = ((ya - yc) * x + (xc - xa) * y + xa * yc - xc * ya) /
-		((ya - yc) * xb + (xc - xa) * yb + xa * yc - xc * ya);
-	float alpha = 1 - beta - gamma;
-
-	return v1 * alpha + v2 * beta + v3 * gamma;
-}
-
 
 #endif // !TRIANGLE
 

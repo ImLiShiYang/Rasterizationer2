@@ -1,4 +1,5 @@
 #include "Rasterizer.h"
+#include <iostream>
 
 
 Rasterizer::Rasterizer(std::string file, TGAImage img):filename(file),image(img), width(img.width()), height(img.height())
@@ -226,6 +227,12 @@ void Rasterizer::rasterize_edge_equation(const Triangle& m, std::vector<glm::vec
 			{
 				//Vertex pixel= barycentric_coordinates(pos, m.vertex[0], m.vertex[1], m.vertex[2]);
 				Vertex pixel = barycentric_coordinates_perspective(pos, m.vertex[0], m.vertex[1], m.vertex[2], clipSpacePos);
+				//Vertex pixel = barycentricPerspectiveLerp(m, glm::vec2((float)x + 0.5, (float)y + 0.5), clipSpacePos);
+				glm::vec3 light_o(-20, 20, 20);
+				
+				PointLight light(light_o, 2000.f);
+				FragmentShaderPayload shader(pixel, light);
+				pixel = BlinnPhoneShader(shader);
 				if (pixel.vertex.z > z_buffer[get_index(pos.vertex.x, pos.vertex.y)])
 				{
 					z_buffer[get_index(pos.vertex.x, pos.vertex.y)] = pixel.vertex.z;
@@ -248,7 +255,7 @@ void Rasterizer::draw(std::vector<std::shared_ptr<Mesh>> MeshList)
 
 	for (std::shared_ptr<Mesh> m : MeshList)
 	{
-		for (Triangle t : m->primitives)
+		for (const Triangle& t : m->primitives)
 		{
 			/**/
 			//从局部坐标转换到相机坐标
@@ -275,6 +282,14 @@ void Rasterizer::draw(std::vector<std::shared_ptr<Mesh>> MeshList)
 						continue;
 				}
 			}
+
+			//法线
+			std::vector<glm::vec4> normal
+			{
+				GetNormal(t.vertex[0].normal,MV),
+				GetNormal(t.vertex[1].normal,MV),
+				GetNormal(t.vertex[2].normal,MV)
+			};
 
 			//从相机空间转换到齐次裁剪空间
 			for (int i = 0; i < 3; i++)
@@ -307,7 +322,7 @@ void Rasterizer::draw(std::vector<std::shared_ptr<Mesh>> MeshList)
 				//NewTriangle的顶点是屏幕空间下的坐标
 				NewTri.setVertexPos(i, vert[i]);
 				NewTri.setColor(i, t.vertex[i].vertexColor);
-				//NewTri.setNormal(i, normal[i]);
+				NewTri.setNormal(i, normal[i]);
 			}
 
 			//std::array<glm::vec4, 3> clipSpacePos_Array;
@@ -326,8 +341,8 @@ void Rasterizer::draw(std::vector<std::shared_ptr<Mesh>> MeshList)
 					v.emplace_back(clipSpacePos[(i + 2) % clipSpacePos.size()]);
 				}
 
-				//rasterize_edge_equation(new_tri, v);
-				rasterize_wireframe(new_tri);
+				rasterize_edge_equation(new_tri, v);
+				//rasterize_wireframe(new_tri);
 				//rasterize_edge_walking(sjx, clipSpacePos_Array);
 			}
 		}
@@ -591,10 +606,8 @@ glm::mat4 Rasterizer::Model_Matrix()
 {
 	glm::mat4 matrix(1.0f);
 	float angle = glm::radians(theta);
-	glm::vec3 axis(0.0f, 1.0f, 0.0f);
-	matrix = glm::rotate(matrix, angle, axis);
+	matrix = glm::rotate(matrix, angle, rotateAxis);
 	matrix = glm::translate(matrix, glm::vec3(0, -2, 0));
-
 	return matrix;
 }
 
@@ -674,6 +687,10 @@ glm::mat4 Rasterizer::Viewport_Matrix(float width, float height)
 void Rasterizer::SetCamera(glm::vec3 camera)
 {
 	cameraPos = camera;
+	glm::mat4 matrix(1.0f);
+	float angle = glm::radians(theta);
+	matrix = glm::rotate(matrix, angle, rotateAxis);
+	//cameraPos = matrix * glm::vec4(cameraPos,0);
 }
 
 void Rasterizer::SetRotateAxis(glm::vec3 Axis)

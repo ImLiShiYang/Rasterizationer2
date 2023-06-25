@@ -12,6 +12,7 @@
 #include "tgaimage.h"
 #include "Triangle.h"
 #include "OBJ_load.h"
+#include "shader.h"
 
 constexpr float MY_PI = 3.14159265359f;
 
