@@ -8,15 +8,17 @@
 
 #include <array>
 
+constexpr float MY_PI = 3.14159265359f;
+
 class Vertex
 {
 public:
-	Vertex() :vertex(), vertexColor(), normal(), texcoord(), worldPos() {}
-		
-	Vertex(glm::vec4 vertex):vertex(vertex), vertexColor(), normal(), texcoord(), worldPos() {}
+	Vertex() :vertex(), vertexColor(), normal(), texcoord(), worldPos(), cameraSpacePos(){}
+	
+	Vertex(glm::vec4 vertex):vertex(vertex), vertexColor(), normal(), texcoord(), worldPos() , cameraSpacePos(){}
 
 	Vertex(glm::vec4 vertex, TGAColor vertexColor, glm::vec4 normal,glm::vec2 tex) :
-		vertex(vertex), vertexColor(vertexColor), normal(normal),texcoord(tex), worldPos(){}
+		vertex(vertex), vertexColor(vertexColor), normal(normal),texcoord(tex), worldPos(), cameraSpacePos(){}
 
 	Vertex(const glm::vec3& vertex,
 		const TGAColor& vertexColor,
@@ -25,16 +27,16 @@ public:
 		vertex(vertex.x, vertex.y, vertex.z, 1), vertexColor(vertexColor),
 		normal(normal.x, normal.y, normal.z, 0), texcoord(texcoord) {}
 
-	Vertex(glm::vec4 vertex, TGAColor vertexColor, glm::vec4 normal, glm::vec2 tex,glm::vec4 worldPos) :
-		vertex(vertex), vertexColor(vertexColor), normal(normal), texcoord(tex), worldPos(worldPos){}
+	Vertex(glm::vec4 vertex, TGAColor vertexColor, glm::vec4 normal, glm::vec2 tex,glm::vec4 worldPos,glm::vec4 cameraSpacePos) :
+		vertex(vertex), vertexColor(vertexColor), normal(normal), texcoord(tex), worldPos(worldPos), cameraSpacePos(cameraSpacePos){}
 
 	Vertex operator+(const Vertex& v) const {
 		return Vertex(vertex + v.vertex, vertexColor + v.vertexColor,
-			normal + v.normal, texcoord + v.texcoord, worldPos + v.worldPos);
+			normal + v.normal, texcoord + v.texcoord, worldPos + v.worldPos, cameraSpacePos+v.cameraSpacePos);
 	}
 
 	Vertex operator*(const float x) const {
-		return Vertex(vertex * x, vertexColor * x, normal * x, texcoord * x, worldPos * x);
+		return Vertex(vertex * x, vertexColor * x, normal * x, texcoord * x, worldPos * x, cameraSpacePos * x);
 	}
 	Vertex& operator=(const Vertex& v) {
 		vertex = v.vertex;
@@ -42,6 +44,7 @@ public:
 		normal = v.normal;
 		texcoord = v.texcoord;
 		worldPos = v.worldPos;
+		cameraSpacePos = v.cameraSpacePos;
 		return *this;
 	}
 
@@ -51,6 +54,7 @@ public:
 	glm::vec4 normal;
 	glm::vec2 texcoord;
 	glm::vec4 worldPos;
+	glm::vec4 cameraSpacePos;
 };
 
 inline glm::vec4 lerp(glm::vec4 v1, glm::vec4 v2, float t)
@@ -70,7 +74,8 @@ inline Vertex lerp(const Vertex& v1, const Vertex& v2, const float t) {
 		ColorLerp(v1.vertexColor, v2.vertexColor, t),
 		lerp(v1.normal, v2.normal, t),
 		lerp(v1.texcoord, v2.texcoord, t),
-		lerp(v1.worldPos, v2.worldPos, t)
+		lerp(v1.worldPos, v2.worldPos, t),
+		lerp(v1.cameraSpacePos, v2.cameraSpacePos, t)
 	};
 }
 
@@ -176,8 +181,8 @@ inline Vertex barycentric_coordinates_perspective(const Vertex& pos, const Verte
 	float gamma = (g / v[2].w) * W;
 	float alpha = 1.0f - beta - gamma;
 
-	return p0 * alpha + p1 * beta + p2 * gamma;
-
+	Vertex ppp= p0 * alpha + p1 * beta + p2 * gamma;
+	return ppp;
 }
 
 //∑®œﬂ±‰ªªæÿ’Û
@@ -256,6 +261,98 @@ struct Line
 	Line() :isNull(true) {}
 	Line(const Vertex& v1, const Vertex& v2) :v1(v1), v2(v2) {}
 };
+
+inline glm::mat4 Model_Matrix(float theta, glm::vec3 rotateAxis)
+{
+	glm::mat4 matrix(1.0f);
+	float angle = glm::radians(theta);
+	matrix = glm::rotate(matrix, angle, rotateAxis);
+	matrix = glm::translate(matrix, glm::vec3(0, -2, 0));
+	return matrix;
+}
+
+inline glm::vec3 SetCamera(glm::vec3 camera, float theta, glm::vec3 rotateAxis)
+{
+	glm::mat4 matrix(1.0f);
+	float angle = glm::radians(theta);
+	matrix = glm::rotate(matrix, angle, rotateAxis);
+	return matrix * glm::vec4(camera, 0);
+}
+
+
+inline glm::mat4 View_Matrix(glm::vec3 cameraPos, glm::vec3 center, glm::vec3 up)
+{
+	glm::vec3 z_vector = glm::normalize(cameraPos - center);
+	glm::vec3 x_vector = glm::normalize(glm::cross(up, z_vector));
+	glm::vec3 y_vector = glm::normalize(glm::cross(z_vector, x_vector));
+
+	glm::mat4 R_view(1.0f), T_view(1.0f);
+	T_view[3][0] = -cameraPos.x;
+	T_view[3][1] = -cameraPos.y;
+	T_view[3][2] = -cameraPos.z;
+
+	R_view[0][0] = x_vector.x;
+	R_view[1][0] = x_vector.y;
+	R_view[2][0] = x_vector.z;
+
+	R_view[0][1] = y_vector.x;
+	R_view[1][1] = y_vector.y;
+	R_view[2][1] = y_vector.z;
+
+	R_view[0][2] = z_vector.x;
+	R_view[1][2] = z_vector.y;
+	R_view[2][2] = z_vector.z;
+
+	return R_view * T_view;
+}
+
+inline glm::mat4 Orthographic_Matrix(float left, float bottom, float near, float right, float top, float far)
+{
+	glm::mat4 matrix(1.0f);
+	matrix[0][0] = 2 / (right - left);
+	matrix[1][1] = 2 / (top - bottom);
+	matrix[2][2] = 2 / (near - far);
+
+	matrix[3][0] = -(right + left) / (right - left);
+	matrix[3][1] = -(top + bottom) / (top - bottom);
+	matrix[3][2] = -(near + far) / (near - far);
+
+	return matrix;
+}
+
+inline glm::mat4 Perspective_Matrix(float zneardis, float zfardis, float fovY, float aspect)
+{
+	float n = -zneardis;
+	float f = -zfardis;
+	float ffovY = fovY / 180.0 * MY_PI;
+
+	glm::mat4 matrix(0.0f);
+	matrix[0][0] = n;
+	matrix[1][1] = n;
+	matrix[2][2] = n + f;
+	matrix[2][3] = 1;
+
+	matrix[3][2] = -f * n;
+
+	float t = std::tan(ffovY / 2) * abs(n);
+	float b = -t;
+	float r = aspect * t;
+	float l = -r;
+
+	return Orthographic_Matrix(l, b, n, r, t, f) * matrix;
+}
+
+
+inline glm::mat4 Viewport_Matrix(float width, float height)
+{
+	glm::mat4 matrix(1.0f);
+	matrix[0][0] = width / 2;
+	matrix[1][1] = height / 2;
+	matrix[3][0] = width / 2;
+	matrix[3][1] = height / 2;
+
+	return matrix;
+}
 
 
 #endif // !GEOMETRY_H

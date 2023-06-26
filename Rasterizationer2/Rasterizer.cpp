@@ -3,7 +3,6 @@
 
 
 Rasterizer::Rasterizer(std::string file, TGAImage img):filename(file),image(img), width(img.width()), height(img.height())
-			, zneardis(0.1f), zfardis(50), fovY(90), aspect((float)4/3)
 {
 	image.flip_vertically(); /*让坐标原点位于图像左下角*/
 
@@ -11,10 +10,6 @@ Rasterizer::Rasterizer(std::string file, TGAImage img):filename(file),image(img)
 	xmax = width;
 	ymin = 0;
 	ymax = height;
-
-	cameraPos = glm::vec3(0, 0, 2);
-	theta = 0;
-	rotateAxis= glm::vec3(0, 1, 0);
 
 	z_buffer.resize(img.width() * img.height());
 	std::fill(z_buffer.begin(), z_buffer.end(), -std::numeric_limits<float>::infinity());
@@ -53,10 +48,10 @@ void Rasterizer::MVP_Matrix()
 	
 }
 
-void Rasterizer::SetTheta(float t)
-{
-	theta = t;
-}
+//void Rasterizer::SetTheta(float t)
+//{
+//	theta = t;
+//}
 
 void Rasterizer::TurnOnBackCulling()
 {
@@ -211,7 +206,7 @@ void Rasterizer::rasterize_edge_walking(const Triangle& m , const std::array<glm
 
 }
 
-void Rasterizer::rasterize_edge_equation(const Triangle& m, std::vector<glm::vec4>& clipSpacePos)
+void Rasterizer::rasterize_edge_equation(const Triangle& m, std::vector<glm::vec4>& clipSpacePos, IShader& shader)
 {
 	int leftEdge = std::floor(std::min({ m.vertex[0].vertex.x, m.vertex[1].vertex.x, m.vertex[2].vertex.x }));
 	int rightEdge = std::ceil(std::max({ m.vertex[0].vertex.x, m.vertex[1].vertex.x, m.vertex[2].vertex.x }));
@@ -228,15 +223,13 @@ void Rasterizer::rasterize_edge_equation(const Triangle& m, std::vector<glm::vec
 				//Vertex pixel= barycentric_coordinates(pos, m.vertex[0], m.vertex[1], m.vertex[2]);
 				Vertex pixel = barycentric_coordinates_perspective(pos, m.vertex[0], m.vertex[1], m.vertex[2], clipSpacePos);
 				//Vertex pixel = barycentricPerspectiveLerp(m, glm::vec2((float)x + 0.5, (float)y + 0.5), clipSpacePos);
-				glm::vec3 light_o(-20, 20, 20);
-				
-				PointLight light(light_o, 2000.f);
-				FragmentShaderPayload shader(pixel, light);
-				pixel = BlinnPhoneShader(shader);
+
+				TGAColor color = shader.FragmentShader(pixel);
+
 				if (pixel.vertex.z > z_buffer[get_index(pos.vertex.x, pos.vertex.y)])
 				{
 					z_buffer[get_index(pos.vertex.x, pos.vertex.y)] = pixel.vertex.z;
-					image.set(x, y, pixel.vertexColor);
+					image.set(x, y, color);
 				}
 			}
 		}
@@ -248,61 +241,47 @@ int Rasterizer::get_index(int x, int y)
 	return y * width + x;
 }
 
-void Rasterizer::draw(std::vector<std::shared_ptr<Mesh>> MeshList)
+void Rasterizer::draw(std::vector<std::shared_ptr<Mesh>> MeshList, IShader& shader)
 {
-	glm::mat4 MV = View_Matrix(cameraPos, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0, 1.0f, 0)) * Model_Matrix();
-	glm::mat4 P = Perspective_Matrix(zneardis, zfardis, fovY, aspect);
 
 	for (std::shared_ptr<Mesh> m : MeshList)
 	{
-		for (const Triangle& t : m->primitives)
+		for (Triangle t : m->primitives)
 		{
-			/**/
+			//顶点着色器，这里对三角形的顶点变换为裁剪空间
+			shader.VertexShader(t);
 			//从局部坐标转换到相机坐标
 			std::vector<glm::vec4> vert
 			{
-				MV * t.vertex[0].vertex,
-				MV * t.vertex[1].vertex,
-				MV * t.vertex[2].vertex
+				t.vertex[0].vertex,
+				t.vertex[1].vertex,
+				t.vertex[2].vertex
 			};
+			
+			//背面裁剪
+			//if (backCulling)
+			//{
+			//	glm::vec4 v1 = vert[1] - vert[0], v2 = vert[2] - vert[1];
+			//	glm::vec3 v = glm::cross(glm::vec3(v1), glm::vec3(v2));
+			//	glm::vec3 gaze(vert[0]);
+			//	if (vertexOrder == TriangleVertexOrder::counterclockwise)
+			//	{
+			//		if (glm::dot(v, gaze) >= 0)
+			//			continue;
+			//	}
+			//	else
+			//	{
+			//		if (glm::dot(v, gaze) <= 0)
+			//			continue;
+			//	}
+			//}
 
-			if (backCulling)
-			{
-				glm::vec4 v1 = vert[1] - vert[0], v2 = vert[2] - vert[1];
-				glm::vec3 v = glm::cross(glm::vec3(v1), glm::vec3(v2));
-				glm::vec3 gaze(vert[0]);
-				if (vertexOrder == TriangleVertexOrder::counterclockwise)
-				{
-					if (glm::dot(v, gaze) >= 0)
-						continue;
-				}
-				else
-				{
-					if (glm::dot(v, gaze) <= 0)
-						continue;
-				}
-			}
-
-			//法线
-			std::vector<glm::vec4> normal
-			{
-				GetNormal(t.vertex[0].normal,MV),
-				GetNormal(t.vertex[1].normal,MV),
-				GetNormal(t.vertex[2].normal,MV)
-			};
-
-			//从相机空间转换到齐次裁剪空间
-			for (int i = 0; i < 3; i++)
-			{
-				vert[i] = P * vert[i];
-			}
-
-			//简单处理的齐次裁剪，超出范围的三角形直接丢弃
-			for (int i = 0; i < 3; i++)
-			{
-				if (vert[i].w > -zneardis || vert[i].w < -zfardis)
-					continue;
-			}
+			////简单处理的齐次裁剪，超出范围的三角形直接丢弃
+			//for (int i = 0; i < 3; i++)
+			//{
+			//	if (vert[i].w > -zneardis || vert[i].w < -zfardis)
+			//		continue;
+			//}
 			std::vector<glm::vec4> clipSpacePos = vert;
 
 			//透视除法
@@ -322,7 +301,8 @@ void Rasterizer::draw(std::vector<std::shared_ptr<Mesh>> MeshList)
 				//NewTriangle的顶点是屏幕空间下的坐标
 				NewTri.setVertexPos(i, vert[i]);
 				NewTri.setColor(i, t.vertex[i].vertexColor);
-				NewTri.setNormal(i, normal[i]);
+				NewTri.setNormal(i, t.vertex[i].normal);
+				NewTri.setCameraPos(i, t.vertex[i].cameraSpacePos);
 			}
 
 			//std::array<glm::vec4, 3> clipSpacePos_Array;
@@ -336,12 +316,16 @@ void Rasterizer::draw(std::vector<std::shared_ptr<Mesh>> MeshList)
 				std::vector<glm::vec4> v;
 				if (!clipSpacePos.empty())
 				{
-					v.emplace_back(clipSpacePos[0]);
-					v.emplace_back(clipSpacePos[(i + 1) % clipSpacePos.size()]);
-					v.emplace_back(clipSpacePos[(i + 2) % clipSpacePos.size()]);
+					for (int j = 1; j < 2; j++)
+					{
+						v.emplace_back(clipSpacePos[0]);
+						v.emplace_back(clipSpacePos[(j) % clipSpacePos.size()]);
+						v.emplace_back(clipSpacePos[(j + 1) % clipSpacePos.size()]);
+					}
+					
 				}
 
-				rasterize_edge_equation(new_tri, v);
+				rasterize_edge_equation(new_tri, v, shader);
 				//rasterize_wireframe(new_tri);
 				//rasterize_edge_walking(sjx, clipSpacePos_Array);
 			}
@@ -496,10 +480,10 @@ std::vector<Triangle> Rasterizer::SuthHodgClipTriangle(Triangle& triangle, std::
 
 	if (!poly_points.empty())
 	{
-		for (int i = 0; i < poly_points.size(); i++)
+		for (int i = 1; i < poly_points.size()-1; i++)
 		{
-			triangles.emplace_back(Triangle(poly_points[0], poly_points[(i + 1) % poly_points.size()],
-				poly_points[(i + 2) % poly_points.size()]));
+			triangles.emplace_back(Triangle(poly_points[0], poly_points[(i) % poly_points.size()],
+				poly_points[(i + 1) % poly_points.size()]));
 		}
 	}
 	
@@ -602,98 +586,98 @@ void Rasterizer::SuthHodgClip(std::vector<Vertex>& poly_points, glm::vec2 p1, gl
 	clipSpacePos = new_clipSpacePos;
 }
 
-glm::mat4 Rasterizer::Model_Matrix()
-{
-	glm::mat4 matrix(1.0f);
-	float angle = glm::radians(theta);
-	matrix = glm::rotate(matrix, angle, rotateAxis);
-	matrix = glm::translate(matrix, glm::vec3(0, -2, 0));
-	return matrix;
-}
+//glm::mat4 Rasterizer::Model_Matrix()
+//{
+//	glm::mat4 matrix(1.0f);
+//	float angle = glm::radians(theta);
+//	matrix = glm::rotate(matrix, angle, rotateAxis);
+//	matrix = glm::translate(matrix, glm::vec3(0, -2, 0));
+//	return matrix;
+//}
+//
+//glm::mat4 Rasterizer::View_Matrix(glm::vec3 cameraPos,glm::vec3 center,glm::vec3 up)
+//{
+//	glm::vec3 z_vector = glm::normalize(cameraPos - center);
+//	glm::vec3 x_vector = glm::normalize(glm::cross(up, z_vector));
+//	glm::vec3 y_vector= glm::normalize(glm::cross(z_vector, x_vector));
+//
+//	glm::mat4 R_view(1.0f), T_view(1.0f);
+//	T_view[3][0] = -cameraPos.x;
+//	T_view[3][1] = -cameraPos.y;
+//	T_view[3][2] = -cameraPos.z;
+//
+//	R_view[0][0] = x_vector.x;
+//	R_view[1][0] = x_vector.y;
+//	R_view[2][0] = x_vector.z;
+//
+//	R_view[0][1] = y_vector.x;
+//	R_view[1][1] = y_vector.y;
+//	R_view[2][1] = y_vector.z;
+//
+//	R_view[0][2] = z_vector.x;
+//	R_view[1][2] = z_vector.y;
+//	R_view[2][2] = z_vector.z;
+//
+//	return R_view * T_view;
+//}
+//
+//glm::mat4 Rasterizer::Perspective_Matrix(float zneardis, float zfardis, float fovY, float aspect)
+//{
+//	float n = -zneardis;
+//	float f = -zfardis;
+//	float ffovY = fovY / 180.0 * MY_PI;
+//
+//	glm::mat4 matrix(0.0f);
+//	matrix[0][0] = n;
+//	matrix[1][1] = n;
+//	matrix[2][2] = n + f;
+//	matrix[2][3] = 1;
+//
+//	matrix[3][2] = -f * n;
+//
+//	float t = std::tan(ffovY / 2) * abs(n);
+//	float b = -t;
+//	float r = aspect * t;
+//	float l = -r;
+//
+//	return Orthographic_Matrix(l, b, n, r, t, f) * matrix;
+//}
+//
+//glm::mat4 Rasterizer::Orthographic_Matrix(float left, float bottom, float near, float right, float top, float far)
+//{
+//	glm::mat4 matrix(1.0f);
+//	matrix[0][0] = 2 / (right - left);
+//	matrix[1][1] = 2 / (top - bottom);
+//	matrix[2][2] = 2 / (near - far);
+//
+//	matrix[3][0] = -(right + left) / (right - left);
+//	matrix[3][1] = -(top + bottom) / (top - bottom);
+//	matrix[3][2] = -(near + far) / (near - far);
+//
+//	return matrix;
+//}
+//
+//glm::mat4 Rasterizer::Viewport_Matrix(float width, float height)
+//{
+//	glm::mat4 matrix(1.0f);
+//	matrix[0][0] = width / 2;
+//	matrix[1][1] = height / 2;
+//	matrix[3][0] = width / 2;
+//	matrix[3][1] = height / 2;
+//
+//	return matrix;
+//}
 
-glm::mat4 Rasterizer::View_Matrix(glm::vec3 cameraPos,glm::vec3 center,glm::vec3 up)
-{
-	glm::vec3 z_vector = glm::normalize(cameraPos - center);
-	glm::vec3 x_vector = glm::normalize(glm::cross(up, z_vector));
-	glm::vec3 y_vector= glm::normalize(glm::cross(z_vector, x_vector));
+//void Rasterizer::SetCamera(glm::vec3 camera)
+//{
+//	cameraPos = camera;
+//	glm::mat4 matrix(1.0f);
+//	float angle = glm::radians(theta);
+//	matrix = glm::rotate(matrix, angle, rotateAxis);
+//	cameraPos = matrix * glm::vec4(cameraPos,0);
+//}
 
-	glm::mat4 R_view(1.0f), T_view(1.0f);
-	T_view[3][0] = -cameraPos.x;
-	T_view[3][1] = -cameraPos.y;
-	T_view[3][2] = -cameraPos.z;
-
-	R_view[0][0] = x_vector.x;
-	R_view[1][0] = x_vector.y;
-	R_view[2][0] = x_vector.z;
-
-	R_view[0][1] = y_vector.x;
-	R_view[1][1] = y_vector.y;
-	R_view[2][1] = y_vector.z;
-
-	R_view[0][2] = z_vector.x;
-	R_view[1][2] = z_vector.y;
-	R_view[2][2] = z_vector.z;
-
-	return R_view * T_view;
-}
-
-glm::mat4 Rasterizer::Perspective_Matrix(float zneardis, float zfardis, float fovY, float aspect)
-{
-	float n = -zneardis;
-	float f = -zfardis;
-	float ffovY = fovY / 180.0 * MY_PI;
-
-	glm::mat4 matrix(0.0f);
-	matrix[0][0] = n;
-	matrix[1][1] = n;
-	matrix[2][2] = n + f;
-	matrix[2][3] = 1;
-
-	matrix[3][2] = -f * n;
-
-	float t = std::tan(ffovY / 2) * abs(n);
-	float b = -t;
-	float r = aspect * t;
-	float l = -r;
-
-	return Orthographic_Matrix(l, b, n, r, t, f) * matrix;
-}
-
-glm::mat4 Rasterizer::Orthographic_Matrix(float left, float bottom, float near, float right, float top, float far)
-{
-	glm::mat4 matrix(1.0f);
-	matrix[0][0] = 2 / (right - left);
-	matrix[1][1] = 2 / (top - bottom);
-	matrix[2][2] = 2 / (near - far);
-
-	matrix[3][0] = -(right + left) / (right - left);
-	matrix[3][1] = -(top + bottom) / (top - bottom);
-	matrix[3][2] = -(near + far) / (near - far);
-
-	return matrix;
-}
-
-glm::mat4 Rasterizer::Viewport_Matrix(float width, float height)
-{
-	glm::mat4 matrix(1.0f);
-	matrix[0][0] = width / 2;
-	matrix[1][1] = height / 2;
-	matrix[3][0] = width / 2;
-	matrix[3][1] = height / 2;
-
-	return matrix;
-}
-
-void Rasterizer::SetCamera(glm::vec3 camera)
-{
-	cameraPos = camera;
-	glm::mat4 matrix(1.0f);
-	float angle = glm::radians(theta);
-	matrix = glm::rotate(matrix, angle, rotateAxis);
-	//cameraPos = matrix * glm::vec4(cameraPos,0);
-}
-
-void Rasterizer::SetRotateAxis(glm::vec3 Axis)
-{
-	rotateAxis = Axis;
-}
+//void Rasterizer::SetRotateAxis(glm::vec3 Axis)
+//{
+//	rotateAxis = Axis;
+//}

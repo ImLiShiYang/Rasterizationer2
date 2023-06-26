@@ -15,6 +15,17 @@ public:
 	PointLight light;
 };
 
+class IShader {
+public:
+	//virtual void setmtl(Material& material) = 0;
+	//virtual void setddx(const float ddx) = 0;
+	//virtual void setddy(const float ddy) = 0;
+	virtual void VertexShader(Triangle& primitive) = 0;
+	virtual TGAColor FragmentShader(Vertex& vertex) = 0;
+};
+
+
+
 static Vertex BlinnPhoneShader(const FragmentShaderPayload& payload)
 {
 	//自发光
@@ -31,7 +42,7 @@ static Vertex BlinnPhoneShader(const FragmentShaderPayload& payload)
 	glm::vec3 light_dir = glm::normalize(payload.light.position - pos);
 	float r_r = glm::distance(payload.light.position, pos) * glm::distance(payload.light.position, pos);
 	glm::vec3 diffuse = kd * std::max(0.0f, glm::dot(light_dir, normal)) * payload.light.intensity / r_r;
-	//高光 * payload.light.intensity / r_r
+	//高光
 	glm::vec3 ks(0.7937);
 	glm::vec3 view_dir = glm::normalize( - pos);
 	glm::vec3 half_vector = glm::normalize(view_dir + light_dir);

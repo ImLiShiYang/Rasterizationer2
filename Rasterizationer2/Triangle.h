@@ -25,10 +25,13 @@ public:
 	void setVertexPos(int index, glm::vec4 newVert);
 	void setVertexPos(glm::vec4 newVert[3]);
 
-	void setNormal(int index, glm::vec4& newNorm);
+	void setNormal(int index, glm::vec4 newNorm);
 	void setNormal(glm::vec4 newNorm[3]);
 	void setColor(int index, const TGAColor& newColor);
 	void setColor(const TGAColor newColor[3]);
+
+	void setCameraPos(int index, glm::vec4 newVert);
+	//void setCameraPos(glm::vec4 newVert[3]);
 
 	//根据y值排序，使得v1.y>v2.y>v3.y
 	//void SortVertexsByY();

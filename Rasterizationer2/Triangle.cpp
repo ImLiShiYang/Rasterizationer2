@@ -44,7 +44,7 @@ void Triangle::setVertexs(int index, const Vertex& v)
 }
 
 
-void Triangle::setNormal(int index, glm::vec4& newNorm)
+void Triangle::setNormal(int index, glm::vec4 newNorm)
 {
 	vertex[index].normal = newNorm;
 }
@@ -72,6 +72,11 @@ void Triangle::setColor(const TGAColor newColor[3])
 	vertex[0].vertexColor = newColor[0];
 	vertex[1].vertexColor = newColor[1];
 	vertex[2].vertexColor = newColor[2];
+}
+
+void Triangle::setCameraPos(int index, glm::vec4 newVert)
+{
+	vertex[index].cameraSpacePos = newVert;
 }
 
 void Triangle::setVertexPos(glm::vec4 newVert[3])
