@@ -259,29 +259,30 @@ void Rasterizer::draw(std::vector<std::shared_ptr<Mesh>> MeshList, IShader& shad
 			};
 			
 			//背面裁剪
-			//if (backCulling)
-			//{
-			//	glm::vec4 v1 = vert[1] - vert[0], v2 = vert[2] - vert[1];
-			//	glm::vec3 v = glm::cross(glm::vec3(v1), glm::vec3(v2));
-			//	glm::vec3 gaze(vert[0]);
-			//	if (vertexOrder == TriangleVertexOrder::counterclockwise)
-			//	{
-			//		if (glm::dot(v, gaze) >= 0)
-			//			continue;
-			//	}
-			//	else
-			//	{
-			//		if (glm::dot(v, gaze) <= 0)
-			//			continue;
-			//	}
-			//}
+			if (backCulling)
+			{
+				glm::vec4 v1 = t.vertex[1].cameraSpacePos - t.vertex[0].cameraSpacePos;
+				glm::vec4 v2 = t.vertex[2].cameraSpacePos - t.vertex[1].cameraSpacePos;
+				glm::vec3 v = glm::cross(glm::vec3(v1), glm::vec3(v2));
+				glm::vec3 gaze(t.vertex[0].cameraSpacePos);
+				if (vertexOrder == TriangleVertexOrder::counterclockwise)
+				{
+					if (glm::dot(v, gaze) >= 0)
+						continue;
+				}
+				else
+				{
+					if (glm::dot(v, gaze) <= 0)
+						continue;
+				}
+			}
 
-			////简单处理的齐次裁剪，超出范围的三角形直接丢弃
-			//for (int i = 0; i < 3; i++)
-			//{
-			//	if (vert[i].w > -zneardis || vert[i].w < -zfardis)
-			//		continue;
-			//}
+			//简单处理的齐次裁剪，超出范围的三角形直接丢弃
+			for (int i = 0; i < 3; i++)
+			{
+				if (vert[i].w > -0.1f || vert[i].w < -50.f)
+					continue;
+			}
 			std::vector<glm::vec4> clipSpacePos = vert;
 
 			//透视除法

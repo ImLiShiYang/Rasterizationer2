@@ -262,12 +262,12 @@ struct Line
 	Line(const Vertex& v1, const Vertex& v2) :v1(v1), v2(v2) {}
 };
 
-inline glm::mat4 Model_Matrix(float theta, glm::vec3 rotateAxis)
+inline glm::mat4 Model_Matrix(glm::vec3 move,float theta, glm::vec3 rotateAxis)
 {
 	glm::mat4 matrix(1.0f);
 	float angle = glm::radians(theta);
 	matrix = glm::rotate(matrix, angle, rotateAxis);
-	matrix = glm::translate(matrix, glm::vec3(0, -2, 0));
+	matrix = glm::translate(matrix, move);
 	return matrix;
 }
 

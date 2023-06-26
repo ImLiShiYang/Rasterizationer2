@@ -5,7 +5,7 @@
 #include <chrono>
 
 auto eye_pos = glm::vec3(0, 0, 2.5f);
-auto gaze_dir = glm::vec3(0, 0, -1);
+auto gaze_dir = glm::vec3(0, 0, 0);
 auto view_up = glm::vec3(0, 1, 0);
 float angle = 0;
 int width = 800;
@@ -22,9 +22,11 @@ public:
 	Shader() = default;
 	virtual void VertexShader(Triangle& primitive)
 	{
-		modeling = Model_Matrix(angle, glm::vec3(0, 1, 0));
-		viewing = View_Matrix(eye_pos, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0, 1.0f, 0));
+		modeling = Model_Matrix(glm::vec3(0, -4, 0), angle, glm::vec3(0, 1, 0));
+		viewing = View_Matrix(eye_pos, gaze_dir, view_up);
 		projection = Perspective_Matrix(zneardis, zfardis, fovY, aspect);
+
+		glm::mat4 MV = viewing * modeling;
 
 		glm::mat4 mvn = viewing * modeling;
 		mvn = glm::transpose(glm::inverse(mvn));
@@ -32,9 +34,9 @@ public:
 		for (Vertex& v : primitive.vertex)
 		{
 			v.normal = mvn * v.normal;
-			v.vertex = projection * viewing * modeling * v.vertex;
+			v.cameraSpacePos= MV * v.vertex;
 			v.worldPos= modeling * v.vertex;
-			v.cameraSpacePos= viewing * modeling * v.vertex;
+			v.vertex = projection * viewing * modeling * v.vertex;
 		}
 		tri_cameraspace = primitive;
 
@@ -115,8 +117,8 @@ void main()
 
 	Shader shader;
 	PointLight light = PointLight(glm::vec3(20, 20, 20), 1000);
-	light.position = View_Matrix(eye_pos, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0, 1.0f, 0)) *
-		Model_Matrix(0, glm::vec3(0, 1, 0)) * glm::vec4(light.position, 0);
+	light.position = View_Matrix(eye_pos, gaze_dir, view_up) * glm::vec4(light.position, 0);
+		
 	shader.lights.push_back(light);
 
 	while (angle < 360)
