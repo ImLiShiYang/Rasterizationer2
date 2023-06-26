@@ -41,16 +41,7 @@ public:
 	//Sutherland-Hodgman多边形裁切算法
 	std::vector<Triangle> SuthHodgClipTriangle(Triangle& triangle, std::vector<glm::vec4>& clipSpacePos);
 	//此函数根据裁剪区域的一个裁剪边,裁剪所有边缘
-	void SuthHodgClip(std::vector<Vertex>& poly_points, glm::vec2 p1, glm::vec2 p2, std::vector<glm::vec4>& clipSpacePos);
-
-	//glm::mat4 Model_Matrix();
-	//glm::mat4 View_Matrix(glm::vec3 cameraPos, glm::vec3 center, glm::vec3 up);
-	//glm::mat4 Perspective_Matrix(float zneardis, float zfardis, float fovY, float aspect);
-	//glm::mat4 Orthographic_Matrix(float left, float bottom, float near, float right, float top, float far);
-	//glm::mat4 Viewport_Matrix(float width, float height);
-
-	//void SetCamera(glm::vec3 camera);
-	//void SetRotateAxis(glm::vec3 Axis);
+	void SuthHodgClip(std::vector<Vertex>& poly_points, Triangle& triangle, glm::vec2 p1, glm::vec2 p2, std::vector<glm::vec4>& clipSpacePos);
 
 	void MVP_Matrix();
 	//void SetTheta(float t);
@@ -62,7 +53,7 @@ public:
 
 	bool insideTriangle(const Triangle& m, const float x, const float y);
 	void rasterize_edge_walking(const Triangle& m, const std::array<glm::vec4, 3>& clipSpacePos_Array);
-	void rasterize_edge_equation(const Triangle& m, std::vector<glm::vec4>& clipSpacePos, IShader& shader);
+	void rasterize_edge_equation(const Triangle& origin_m,const Triangle& m, std::vector<glm::vec4>& clipSpacePos, IShader& shader);
 
 private:
 	TGAImage image;

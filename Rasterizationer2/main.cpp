@@ -22,7 +22,7 @@ public:
 	Shader() = default;
 	virtual void VertexShader(Triangle& primitive)
 	{
-		modeling = Model_Matrix(glm::vec3(0, -4, 0), angle, glm::vec3(0, 1, 0));
+		modeling = Model_Matrix(glm::vec3(0, -2, 2), angle, glm::vec3(0, 1, 0));
 		viewing = View_Matrix(eye_pos, gaze_dir, view_up);
 		projection = Perspective_Matrix(zneardis, zfardis, fovY, aspect);
 
@@ -114,6 +114,23 @@ void main()
             MeshList.push_back(m1);
         }
     }
+
+	std::vector<std::shared_ptr<Triangle>> TriangleList;
+
+	{
+		glm::vec3 v[3];
+		v[0] = glm::vec3(2, 0, -2);
+		v[1] = glm::vec3(0, 2, -2);
+		v[2] = glm::vec3(-2, 0, -2);
+		std::shared_ptr<Triangle> t1(new Triangle(v));
+		t1->setColor(0, TGAColor(255, 0, 0));
+		t1->setColor(1, TGAColor(0, 255, 0));
+		t1->setColor(2, TGAColor(0, 0, 255));
+		t1->setNormal(0, glm::vec4(0, 0, 1, 0));
+		t1->setNormal(1, glm::vec4(0, 0, 1, 0));
+		t1->setNormal(2, glm::vec4(0, 0, 1, 0));
+		TriangleList.push_back(t1);
+	}
 
 	Shader shader;
 	PointLight light = PointLight(glm::vec3(20, 20, 20), 1000);

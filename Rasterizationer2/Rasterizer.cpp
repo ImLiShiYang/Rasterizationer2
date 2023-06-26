@@ -206,7 +206,7 @@ void Rasterizer::rasterize_edge_walking(const Triangle& m , const std::array<glm
 
 }
 
-void Rasterizer::rasterize_edge_equation(const Triangle& m, std::vector<glm::vec4>& clipSpacePos, IShader& shader)
+void Rasterizer::rasterize_edge_equation(const Triangle& origin_m,const Triangle& m, std::vector<glm::vec4>& clipSpacePos, IShader& shader)
 {
 	int leftEdge = std::floor(std::min({ m.vertex[0].vertex.x, m.vertex[1].vertex.x, m.vertex[2].vertex.x }));
 	int rightEdge = std::ceil(std::max({ m.vertex[0].vertex.x, m.vertex[1].vertex.x, m.vertex[2].vertex.x }));
@@ -221,7 +221,7 @@ void Rasterizer::rasterize_edge_equation(const Triangle& m, std::vector<glm::vec
 			if (insideTriangle(m, pos.vertex.x, pos.vertex.y))
 			{
 				//Vertex pixel= barycentric_coordinates(pos, m.vertex[0], m.vertex[1], m.vertex[2]);
-				Vertex pixel = barycentric_coordinates_perspective(pos, m.vertex[0], m.vertex[1], m.vertex[2], clipSpacePos);
+				Vertex pixel = barycentric_coordinates_perspective(pos, origin_m.vertex[0], origin_m.vertex[1], origin_m.vertex[2], clipSpacePos);
 				//Vertex pixel = barycentricPerspectiveLerp(m, glm::vec2((float)x + 0.5, (float)y + 0.5), clipSpacePos);
 
 				TGAColor color = shader.FragmentShader(pixel);
@@ -248,6 +248,7 @@ void Rasterizer::draw(std::vector<std::shared_ptr<Mesh>> MeshList, IShader& shad
 	{
 		for (Triangle t : m->primitives)
 		{
+			//Triangle t = *m;
 			//顶点着色器，这里对三角形的顶点变换为裁剪空间
 			shader.VertexShader(t);
 			//从局部坐标转换到相机坐标
@@ -313,20 +314,8 @@ void Rasterizer::draw(std::vector<std::shared_ptr<Mesh>> MeshList, IShader& shad
 			for (int i = 0; i < NewTriangle.size(); i++)
 			{
 				Triangle new_tri = NewTriangle[i];
-				
-				std::vector<glm::vec4> v;
-				if (!clipSpacePos.empty())
-				{
-					for (int j = 1; j < 2; j++)
-					{
-						v.emplace_back(clipSpacePos[0]);
-						v.emplace_back(clipSpacePos[(j) % clipSpacePos.size()]);
-						v.emplace_back(clipSpacePos[(j + 1) % clipSpacePos.size()]);
-					}
-					
-				}
 
-				rasterize_edge_equation(new_tri, v, shader);
+				rasterize_edge_equation(NewTri,new_tri, clipSpacePos, shader);
 				//rasterize_wireframe(new_tri);
 				//rasterize_edge_walking(sjx, clipSpacePos_Array);
 			}
@@ -475,7 +464,7 @@ std::vector<Triangle> Rasterizer::SuthHodgClipTriangle(Triangle& triangle, std::
 
 	//裁剪后的点
 	for (int i = 0; i < 4; i++)
-		SuthHodgClip(poly_points, screenIntersection[i], screenIntersection[(i + 1) % 4], clipSpacePos);
+		SuthHodgClip(poly_points, triangle, screenIntersection[i], screenIntersection[(i + 1) % 4], clipSpacePos);
 
 	std::vector<Triangle> triangles;
 
@@ -493,12 +482,11 @@ std::vector<Triangle> Rasterizer::SuthHodgClipTriangle(Triangle& triangle, std::
 	return triangles;
 }
 
-void Rasterizer::SuthHodgClip(std::vector<Vertex>& poly_points, glm::vec2 p1, glm::vec2 p2, std::vector<glm::vec4>& clipSpacePos)
+void Rasterizer::SuthHodgClip(std::vector<Vertex>& poly_points, Triangle& triangle, glm::vec2 p1, glm::vec2 p2, std::vector<glm::vec4>& clipSpacePos)
 {
 	//存储裁切后的点
 	std::vector<Vertex> new_point;
 	//存储裁切后对应裁剪空间的点
-	std::vector<glm::vec4> new_clipSpacePos;
 
 	for (int i = 0; i < poly_points.size(); i++)
 	{
@@ -519,7 +507,6 @@ void Rasterizer::SuthHodgClip(std::vector<Vertex>& poly_points, glm::vec2 p1, gl
 		{
 			//只添加第二个点
 			new_point.push_back(poly_points[j]);
-			new_clipSpacePos.emplace_back(clipSpacePos[j]);
 		}
 
 		// 情况2：仅第一个点在外部时
@@ -529,25 +516,15 @@ void Rasterizer::SuthHodgClip(std::vector<Vertex>& poly_points, glm::vec2 p1, gl
 			//边缘的交点
 			float x = x_intersect(p1, p2, poly_points[i].vertex, poly_points[j].vertex);
 			float y = y_intersect(p1, p2, poly_points[i].vertex, poly_points[j].vertex);
-			//屏幕空间
-			float t;
-			if (poly_points[j].vertex.x - poly_points[i].vertex.x != 0)
-				t = (x - poly_points[i].vertex.x) / (poly_points[j].vertex.x - poly_points[i].vertex.x);
-			else
-				t = (y - poly_points[i].vertex.y) / (poly_points[j].vertex.y - poly_points[i].vertex.y);
-			//透视矫正插值
-			float t_perspective = perspectiveLerp(t, clipSpacePos[i], clipSpacePos[j]);
-			Vertex v = lerp(poly_points[i], poly_points[j], t_perspective);
-			//顶点还是用屏幕空间的插值计算
-			//v.vertex= lerp(poly_points[i].vertex, poly_points[j].vertex, t);
-			v.vertex = glm::vec4(x, y, v.vertex.w, 1);
-			new_point.push_back(v);
+			Vertex pos_intersection(glm::vec4(x, y, 0, 0));
+			pos_intersection = barycentric_coordinates_perspective(pos_intersection, triangle.vertex[0],
+				triangle.vertex[1], triangle.vertex[2], clipSpacePos);
+			pos_intersection.vertex.x = x;
+			pos_intersection.vertex.y = y;
+			new_point.push_back(pos_intersection);
 
-			glm::vec4 v_clipspace = lerp(clipSpacePos[i], clipSpacePos[j], t_perspective);
-			new_clipSpacePos.emplace_back(v_clipspace);
 			//第二个点
 			new_point.push_back(poly_points[j]);
-			new_clipSpacePos.emplace_back(clipSpacePos[j]);
 
 		}
 
@@ -558,22 +535,12 @@ void Rasterizer::SuthHodgClip(std::vector<Vertex>& poly_points, glm::vec2 p1, gl
 			//边缘的交点
 			float x = x_intersect(p1, p2, poly_points[i].vertex, poly_points[j].vertex);
 			float y = y_intersect(p1, p2, poly_points[i].vertex, poly_points[j].vertex);
-			//屏幕空间
-			float t;
-			if (poly_points[j].vertex.x - poly_points[i].vertex.x != 0)
-				t = (x - poly_points[i].vertex.x) / (poly_points[j].vertex.x - poly_points[i].vertex.x);
-			else
-				t = (y - poly_points[i].vertex.y) / (poly_points[j].vertex.y - poly_points[i].vertex.y);
-			//透视矫正插值
-			float t_perspective = perspectiveLerp(t, clipSpacePos[i], clipSpacePos[j]);
-			Vertex v = lerp(poly_points[i], poly_points[j], t_perspective);
-			//顶点还是用屏幕空间的插值计算
-			//v.vertex = lerp(poly_points[i].vertex, poly_points[j].vertex, t);
-			v.vertex = glm::vec4(x, y, v.vertex.w, 1);
-			new_point.push_back(v);
-
-			glm::vec4 v_clipspace = lerp(clipSpacePos[i], clipSpacePos[j], t_perspective);
-			new_clipSpacePos.emplace_back(v_clipspace);
+			Vertex pos_intersection(glm::vec4(x, y, 0, 0));
+			pos_intersection = barycentric_coordinates_perspective(pos_intersection, triangle.vertex[0],
+				triangle.vertex[1], triangle.vertex[2], clipSpacePos);
+			pos_intersection.vertex.x = x;
+			pos_intersection.vertex.y = y;
+			new_point.push_back(pos_intersection);
 		}
 
 		// 情况4：当两个点都在外部时
@@ -584,101 +551,5 @@ void Rasterizer::SuthHodgClip(std::vector<Vertex>& poly_points, glm::vec2 p1, gl
 	}
 
 	poly_points = new_point;
-	clipSpacePos = new_clipSpacePos;
 }
 
-//glm::mat4 Rasterizer::Model_Matrix()
-//{
-//	glm::mat4 matrix(1.0f);
-//	float angle = glm::radians(theta);
-//	matrix = glm::rotate(matrix, angle, rotateAxis);
-//	matrix = glm::translate(matrix, glm::vec3(0, -2, 0));
-//	return matrix;
-//}
-//
-//glm::mat4 Rasterizer::View_Matrix(glm::vec3 cameraPos,glm::vec3 center,glm::vec3 up)
-//{
-//	glm::vec3 z_vector = glm::normalize(cameraPos - center);
-//	glm::vec3 x_vector = glm::normalize(glm::cross(up, z_vector));
-//	glm::vec3 y_vector= glm::normalize(glm::cross(z_vector, x_vector));
-//
-//	glm::mat4 R_view(1.0f), T_view(1.0f);
-//	T_view[3][0] = -cameraPos.x;
-//	T_view[3][1] = -cameraPos.y;
-//	T_view[3][2] = -cameraPos.z;
-//
-//	R_view[0][0] = x_vector.x;
-//	R_view[1][0] = x_vector.y;
-//	R_view[2][0] = x_vector.z;
-//
-//	R_view[0][1] = y_vector.x;
-//	R_view[1][1] = y_vector.y;
-//	R_view[2][1] = y_vector.z;
-//
-//	R_view[0][2] = z_vector.x;
-//	R_view[1][2] = z_vector.y;
-//	R_view[2][2] = z_vector.z;
-//
-//	return R_view * T_view;
-//}
-//
-//glm::mat4 Rasterizer::Perspective_Matrix(float zneardis, float zfardis, float fovY, float aspect)
-//{
-//	float n = -zneardis;
-//	float f = -zfardis;
-//	float ffovY = fovY / 180.0 * MY_PI;
-//
-//	glm::mat4 matrix(0.0f);
-//	matrix[0][0] = n;
-//	matrix[1][1] = n;
-//	matrix[2][2] = n + f;
-//	matrix[2][3] = 1;
-//
-//	matrix[3][2] = -f * n;
-//
-//	float t = std::tan(ffovY / 2) * abs(n);
-//	float b = -t;
-//	float r = aspect * t;
-//	float l = -r;
-//
-//	return Orthographic_Matrix(l, b, n, r, t, f) * matrix;
-//}
-//
-//glm::mat4 Rasterizer::Orthographic_Matrix(float left, float bottom, float near, float right, float top, float far)
-//{
-//	glm::mat4 matrix(1.0f);
-//	matrix[0][0] = 2 / (right - left);
-//	matrix[1][1] = 2 / (top - bottom);
-//	matrix[2][2] = 2 / (near - far);
-//
-//	matrix[3][0] = -(right + left) / (right - left);
-//	matrix[3][1] = -(top + bottom) / (top - bottom);
-//	matrix[3][2] = -(near + far) / (near - far);
-//
-//	return matrix;
-//}
-//
-//glm::mat4 Rasterizer::Viewport_Matrix(float width, float height)
-//{
-//	glm::mat4 matrix(1.0f);
-//	matrix[0][0] = width / 2;
-//	matrix[1][1] = height / 2;
-//	matrix[3][0] = width / 2;
-//	matrix[3][1] = height / 2;
-//
-//	return matrix;
-//}
-
-//void Rasterizer::SetCamera(glm::vec3 camera)
-//{
-//	cameraPos = camera;
-//	glm::mat4 matrix(1.0f);
-//	float angle = glm::radians(theta);
-//	matrix = glm::rotate(matrix, angle, rotateAxis);
-//	cameraPos = matrix * glm::vec4(cameraPos,0);
-//}
-
-//void Rasterizer::SetRotateAxis(glm::vec3 Axis)
-//{
-//	rotateAxis = Axis;
-//}
