@@ -4,7 +4,7 @@
 #include <string>
 #include <chrono>
 
-auto eye_pos = glm::vec3(0, 0, 2.5f);
+auto eye_pos = glm::vec3(0, 0, 1.5f);
 auto gaze_dir = glm::vec3(0, 0, 0);
 auto view_up = glm::vec3(0, 1, 0);
 float angle = 0;
@@ -22,7 +22,7 @@ public:
 	Shader() = default;
 	virtual void VertexShader(Triangle& primitive)
 	{
-		modeling = Model_Matrix(glm::vec3(0, -2, 0), angle, glm::vec3(0, 1, 0));
+		modeling = Model_Matrix(glm::vec3(0, 0, 0), angle, glm::vec3(0, 1, 0));
 		viewing = View_Matrix(eye_pos, gaze_dir, view_up);
 		projection = Perspective_Matrix(zneardis, zfardis, fovY, aspect);
 
@@ -40,10 +40,38 @@ public:
 		}
 		tri_cameraspace = primitive;
 
+		
 	}
 
 	virtual TGAColor FragmentShader(Vertex& vertex)
 	{
+		glm::vec3 Normal = glm::normalize(glm::vec3(vertex.normal));
+		float u = vertex.texcoord.x;
+		float v = vertex.texcoord.y;
+		float w = material->normal_texture.width();
+		float h = material->normal_texture.height();
+		//从法线贴图中得到法线
+		TGAColor uv = bilinearInterpolate(material->normal_texture, u * w, v * h);
+
+		glm::vec3 uv_vec((float)uv.bgra[2] / 255.f * 2 - 1, (float)uv.bgra[1] / 255.f * 2 - 1, (float)uv.bgra[0] / 255.f * 2 - 1);
+		uv_vec = glm::normalize(uv_vec);
+
+		glm::vec3 p1p0 = glm::vec3(tri_cameraspace.vertex[1].vertex - tri_cameraspace.vertex[0].vertex);
+		glm::vec3 p2p0 = glm::vec3(tri_cameraspace.vertex[2].vertex - tri_cameraspace.vertex[0].vertex);
+		glm::vec3 fu = glm::vec3(tri_cameraspace.vertex[1].texcoord.x - tri_cameraspace.vertex[0].texcoord.x,
+			tri_cameraspace.vertex[2].texcoord.x - tri_cameraspace.vertex[0].texcoord.x, 0);
+		glm::vec3 fv = glm::vec3(tri_cameraspace.vertex[1].texcoord.y - tri_cameraspace.vertex[0].texcoord.y,
+			tri_cameraspace.vertex[2].texcoord.y - tri_cameraspace.vertex[0].texcoord.y, 0);
+
+		glm::mat3 A = glm::transpose(glm::mat3(p1p0, p2p0, Normal));
+		glm::mat3 A_inverse = glm::inverse(A);
+
+		glm::vec3 T = A_inverse * fu;;
+		glm::vec3 B = A_inverse * fv;
+
+		glm::mat3 TBN(glm::normalize(T), glm::normalize(B), Normal);
+		Normal = TBN * uv_vec;
+
 		float Ie = 0;
 		/*
 		glm::vec3 Ka(0.005f), 
@@ -59,15 +87,10 @@ public:
 		}
 		else
 		{
-			//material->texture.get(vertex.texcoord.x, vertex.texcoord.y);
-			//bilinearInterpolate(material->texture, vertex.texcoord.x, vertex.texcoord.y);
 			float uv_u = vertex.texcoord.x * material->texture.width();
 			float uv_v = vertex.texcoord.y * material->texture.height();
 			TGAColor color_text = bilinearInterpolate(material->texture, uv_u, uv_v);
-			Kd = glm::vec3((float)color_text.bgra[2] / 255, (float)color_text.bgra[1] / 255, (float)color_text.bgra[0] / 255);
-			//std::cout << vertex.texcoord.x << " " << vertex.texcoord.y<< std::endl;
-			//std::cout << Kd.x << " " << Kd.y << " " << Kd.z << std::endl;
-			//std::cout << (float)color_text.bgra[2] << " " << (float)color_text.bgra[1] << " " << (float)color_text.bgra[0] << std::endl;
+			Kd = glm::vec3((float)color_text.bgra[2] / 255, (float)color_text.bgra[1] / 255, (float)color_text.bgra[0] / 255);			
 		}
 		
 		glm::vec3 Ks = material->Ks;
@@ -88,7 +111,7 @@ public:
 			//diffuse
 			auto lightdir = glm::normalize(light.position - pos);
 			auto r_2 = std::pow(glm::distance(light.position, pos),2.0f);
-			auto irradiance = glm::dot(glm::vec3(vertex.normal), lightdir);
+			auto irradiance = glm::dot(Normal, lightdir);
 			auto diffuse = Kd * std::max(0.0f, irradiance) * light.intensity / r_2;
 
 			//specular
@@ -138,8 +161,8 @@ void main()
 
     std::vector<std::shared_ptr<Mesh>> MeshList;
     //Model model("obj/Ranni/", "Ranni.obj");
-	Model model("obj/Marry/", "Marry.obj");
-    //Model model("obj/diablo3_pose/", "diablo3_pose.obj");
+	//Model model("obj/Marry/", "Marry.obj");
+    Model model("obj/diablo3_pose/", "diablo3_pose.obj");
     for (auto& o : model.objects)
     {
         for (auto& m : o.meshes)

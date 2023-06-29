@@ -26,6 +26,7 @@ public:
 	float Ni;
 
 	TGAImage texture;
+	TGAImage normal_texture;
 
 	std::vector<TGAImage> map_Ke;
 	std::vector<TGAImage> map_Kd;

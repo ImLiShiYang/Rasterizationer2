@@ -69,8 +69,4 @@
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
-  <ItemGroup>
-    <None Include="packages.config" />
-    <None Include="obj\diablo3_pose\diablo.mtl" />
-  </ItemGroup>
 </Project>

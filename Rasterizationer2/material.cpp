@@ -154,6 +154,7 @@ Material::Material(const std::string& filename, const std::string& root, const s
 			TGAImage map = TGAImage();
 			map.read_tga_file(root + textureName);
 			map.flip_vertically();
+			normal_texture = map;
 			//map_Bump = generateMipmap(map);
 			//map_Bump.write_tga_file(root + "/read_result/" + textureName + ".tga");
 		}
