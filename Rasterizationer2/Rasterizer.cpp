@@ -307,7 +307,7 @@ void Rasterizer::draw(std::vector<std::shared_ptr<Mesh>> MeshList, IShader& shad
 				NewTri.setCameraPos(i, t.vertex[i].cameraSpacePos);
 			}
 
-			//std::array<glm::vec4, 3> clipSpacePos_Array;
+			shader.setmtl(m->material);
 
 			//ÆÁÄ»²Ã¼ô
 			std::vector<Triangle> NewTriangle = SuthHodgClipTriangle(NewTri, clipSpacePos);

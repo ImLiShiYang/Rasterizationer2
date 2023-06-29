@@ -3,6 +3,7 @@
 
 #include "Triangle.h"
 #include "light.h"
+#include "material.h"
 
 class FragmentShaderPayload
 {
@@ -17,14 +18,40 @@ public:
 
 class IShader {
 public:
-	//virtual void setmtl(Material& material) = 0;
+	virtual void setmtl(Material& material) = 0;
 	//virtual void setddx(const float ddx) = 0;
 	//virtual void setddy(const float ddy) = 0;
 	virtual void VertexShader(Triangle& primitive) = 0;
 	virtual TGAColor FragmentShader(Vertex& vertex) = 0;
 };
 
+//双线性插值，取点附近的四个点进行插值
+inline TGAColor bilinearInterpolate(const TGAImage& texture, float u, float v)
+{
+	while (u > texture.width())
+		u -= texture.width();
+	while (u < 0)
+		u += texture.width();
+	while (v > texture.height())
+		v -= texture.height();
+	while (v < 0)
+		v += texture.height();
 
+	float uu = u - 0.5f;
+	float vv = v - 0.5f;
+	glm::vec2 leftTop(std::floor(uu), std::ceil(vv));
+	glm::vec2 rightTop(std::ceil(uu), std::ceil(vv));
+
+	TGAColor topColor = ColorLerp(texture.get(leftTop.x, leftTop.y), texture.get(rightTop.x, rightTop.y), uu - floor(uu));
+
+	glm::vec2 leftBottom(std::floor(uu), std::floor(vv));
+	glm::vec2 rightBottom(std::ceil(uu), std::floor(vv));
+
+	TGAColor bottomColor = ColorLerp(texture.get(leftBottom.x, leftBottom.y), texture.get(rightBottom.x, rightBottom.y), uu - floor(uu));
+
+	TGAColor color = ColorLerp(bottomColor, topColor, vv - floor(vv));
+	return color; 
+}
 
 static Vertex BlinnPhoneShader(const FragmentShaderPayload& payload)
 {

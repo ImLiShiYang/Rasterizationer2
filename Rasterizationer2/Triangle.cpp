@@ -13,7 +13,7 @@ Triangle::Triangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3)
 	vertex[2].vertex = v3;
 
 	//创建三角形时就对顶点逆时针排序
-	//EnsureCounterClockwiseOrder();
+	EnsureCounterClockwiseOrder();
 }
 
 
@@ -86,26 +86,12 @@ void Triangle::setVertexPos(glm::vec4 newVert[3])
 	vertex[2].vertex = newVert[2];
 }
 
-
-
-//根据y值排序，使得v1.y>v2.y>v3.y
-/*
-void Triangle::SortVertexsByY()
-{
-	if (vertex1.y < vertex2.y)
-		std::swap(vertex1, vertex2);
-	if (vertex1.y < vertex3.y)
-		std::swap(vertex1, vertex3);
-	if (vertex2.y < vertex3.y)
-		std::swap(vertex2, vertex3);
-}
-
 bool Triangle::ThreePointCollinearity()
 {
-	glm::vec4 v1 = vertex2 - vertex1;
-	glm::vec4 v2 = vertex3 - vertex1;
-	glm::vec4 v = glm::cross(v1, v2);
-	if (v == glm::vec4(0, 0, 0))
+	glm::vec4 v1 = vertex[1].vertex - vertex[0].vertex;
+	glm::vec4 v2 = vertex[2].vertex - vertex[0].vertex;
+	glm::vec3 v = glm::cross(glm::vec3(v1), glm::vec3(v2));
+	if (v == glm::vec3(0, 0, 0))
 		return true;
 	else
 		return false;
@@ -119,21 +105,16 @@ void Triangle::EnsureCounterClockwiseOrder()
 		return;
 
 	// 计算两条边（e1 和 e2）的向量
-	glm::vec4 e1 = vertex2 - vertex1;
-	glm::vec4 e2 = vertex3 - vertex1;
+	glm::vec4 e1 = vertex[1].vertex - vertex[0].vertex;
+	glm::vec4 e2 = vertex[2].vertex - vertex[0].vertex;
 
 	// 计算这两个向量的叉积，得到法向量
-	glm::vec4 normal = glm::cross(e1, e2);
+	glm::vec3 normal = glm::cross(glm::vec3(e1), glm::vec3(e2));
 
 	// 如果法线的 Z 分量小于零，表示它们是顺时针顺序，需要将顶点顺序改为逆时针。
 	if (normal.z < 0)
 	{
-		std::swap(vertex2, vertex3);
-
-		// 更新 vertexs 数组
-		vertexs[0] = vertex1;
-		vertexs[1] = vertex2;
-		vertexs[2] = vertex3;
+		std::swap(vertex[1].vertex, vertex[2].vertex);
 	}
 }
-*/
+

@@ -22,7 +22,7 @@ public:
 	Shader() = default;
 	virtual void VertexShader(Triangle& primitive)
 	{
-		modeling = Model_Matrix(glm::vec3(0, -2, 2), angle, glm::vec3(0, 1, 0));
+		modeling = Model_Matrix(glm::vec3(0, -2, 0), angle, glm::vec3(0, 1, 0));
 		viewing = View_Matrix(eye_pos, gaze_dir, view_up);
 		projection = Perspective_Matrix(zneardis, zfardis, fovY, aspect);
 
@@ -45,8 +45,33 @@ public:
 	virtual TGAColor FragmentShader(Vertex& vertex)
 	{
 		float Ie = 0;
-		glm::vec3 Ka(0.005f), Kd((float)vertex.vertexColor.bgra[2]/255, (float)vertex.vertexColor.bgra[1]/255, (float)vertex.vertexColor.bgra[0]/255),
-			Ks(0.7937f), Ke(0.0f);
+		/*
+		glm::vec3 Ka(0.005f), 
+			Kd((float)vertex.vertexColor.bgra[2] / 255, (float)vertex.vertexColor.bgra[1] / 255, (float)vertex.vertexColor.bgra[0] / 255),
+			Ks(0.7937f), Ke(0.0f);*/
+
+		
+		glm::vec3 Ka = material->Ka;
+		glm::vec3 Kd;
+		if (material->texture.width() == 0)
+		{
+			Kd = material->Kd == glm::vec3(0) ? glm::vec3(0.6) : material->Kd;
+		}
+		else
+		{
+			//material->texture.get(vertex.texcoord.x, vertex.texcoord.y);
+			//bilinearInterpolate(material->texture, vertex.texcoord.x, vertex.texcoord.y);
+			float uv_u = vertex.texcoord.x * material->texture.width();
+			float uv_v = vertex.texcoord.y * material->texture.height();
+			TGAColor color_text = bilinearInterpolate(material->texture, uv_u, uv_v);
+			Kd = glm::vec3((float)color_text.bgra[2] / 255, (float)color_text.bgra[1] / 255, (float)color_text.bgra[0] / 255);
+			//std::cout << vertex.texcoord.x << " " << vertex.texcoord.y<< std::endl;
+			//std::cout << Kd.x << " " << Kd.y << " " << Kd.z << std::endl;
+			//std::cout << (float)color_text.bgra[2] << " " << (float)color_text.bgra[1] << " " << (float)color_text.bgra[0] << std::endl;
+		}
+		
+		glm::vec3 Ks = material->Ks;
+		glm::vec3 Ke = material->Ke;
 		glm::vec3 color(0, 0, 0);
 		glm::vec3 pos = vertex.cameraSpacePos;
 		for (PointLight& light : lights)
@@ -64,8 +89,7 @@ public:
 			auto lightdir = glm::normalize(light.position - pos);
 			auto r_2 = std::pow(glm::distance(light.position, pos),2.0f);
 			auto irradiance = glm::dot(glm::vec3(vertex.normal), lightdir);
-			auto diffuse = Kd * std::max(0.0f, irradiance) * light.intensity
-				/ r_2;
+			auto diffuse = Kd * std::max(0.0f, irradiance) * light.intensity / r_2;
 
 			//specular
 			auto viewdir = glm::normalize(-pos);
@@ -87,10 +111,19 @@ public:
 		return TGAColor(color.x, color.y, color.z);
 	}
 
+	virtual void setmtl(Material& _material)
+	{
+		material = &_material;
+	}
+
 public:
 	float theta_uniform;
 	std::vector<PointLight> lights;
 private:
+	Material* material;
+	Vertex vertex;
+	float ddx = 1;
+	float ddy = 1;
 	Triangle tri_cameraspace;
 	glm::mat4 modeling, viewing, projection;
 };
@@ -104,8 +137,9 @@ void main()
     //std::vector<Triangle> TriangleList;
 
     std::vector<std::shared_ptr<Mesh>> MeshList;
-    Model model("obj/mary/", "Marry.obj");
-    //Model model("obj/fighter/", "fighter.obj");
+    //Model model("obj/Ranni/", "Ranni.obj");
+	Model model("obj/Marry/", "Marry.obj");
+    //Model model("obj/diablo3_pose/", "diablo3_pose.obj");
     for (auto& o : model.objects)
     {
         for (auto& m : o.meshes)
@@ -133,7 +167,7 @@ void main()
 	}
 
 	Shader shader;
-	PointLight light = PointLight(glm::vec3(20, 20, 20), 1000);
+	PointLight light = PointLight(glm::vec3(20, 20, 20), 1200);
 	light.position = View_Matrix(eye_pos, gaze_dir, view_up) * glm::vec4(light.position, 0);
 		
 	shader.lights.push_back(light);
@@ -145,7 +179,7 @@ void main()
 		std::string filename = "result\\output" + std::to_string(frame);
 
 		TGAImage image(800, 600, TGAImage::RGB);
-
+		//SetCamera(eye_pos, angle, glm::vec3(0, 1, 0));
 		Rasterizer rast(filename, image);
         rast.TurnOnBackCulling();
 		rast.draw(MeshList, shader);

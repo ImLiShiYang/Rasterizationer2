@@ -151,20 +151,20 @@ inline Vertex barycentric_coordinates_perspective(const Vertex& pos, const Verte
 	if (s0 >= 0 && s1 >= 0 && s2 >= 0)
 	{
 		float total_area = glm::cross(e0, -e2).z;
-		glm::vec3 v(s1 / total_area, s2 / total_area, s0 / total_area);
+		glm::vec3 v_barycentric(s1 / total_area, s2 / total_area, s0 / total_area);
 
 		//在透视裁剪空间中，w=z
-		float w = 1.0f / (v.x / clipSpacePos[0].w + v.y / clipSpacePos[1].w + v.z / clipSpacePos[2].w);
+		float w = 1.0f / (v_barycentric.x / v[0].w + v_barycentric.y / v[1].w + v_barycentric.z / v[2].w);
 
-		float alpha = (v.x / clipSpacePos[0].w) * w;
-		float belta = (v.y / clipSpacePos[1].w) * w;
-		float gamma = (v.z / clipSpacePos[2].w) * w;
+		float alpha = (v_barycentric.x / v[0].w) * w;
+		float belta = (v_barycentric.y / v[1].w) * w;
+		float gamma = (v_barycentric.z / v[2].w) * w;
 
 		return Vertex(p0 * alpha + p1 * belta + p2 * gamma);
 	}
-	return Vertex();
-	*/
-
+	return Vertex(); */
+	
+	
 	float xa = p0.vertex.x; float ya = p0.vertex.y;
 	float xb = p1.vertex.x; float yb = p1.vertex.y;
 	float xc = p2.vertex.x; float yc = p2.vertex.y;
