@@ -87,7 +87,7 @@ Material::Material(const std::string& filename, const std::string& root, const s
 			TGAImage map = TGAImage();
 			map.read_tga_file(root + textureName);
 			map.flip_vertically();
-			//map_Ke = generateMipmap(map);
+			map_Ke = generateMipmap(map);
 			//map_Ke.write_tga_file(root + "/read_result/" + textureName + ".tga");
 		}
 		else if (s.compare(0, 7, "map_Ka ") == 0)
@@ -98,7 +98,7 @@ Material::Material(const std::string& filename, const std::string& root, const s
 			TGAImage map = TGAImage();
 			map.read_tga_file(root + textureName);
 			map.flip_vertically();
-			//map_Ka = generateMipmap(map);
+			map_Ka = generateMipmap(map);
 			//map_Ka.write_tga_file(root + "/read_result/" + textureName + ".tga");
 		}
 		else if (s.compare(0, 7, "map_Kd ") == 0)
@@ -109,8 +109,7 @@ Material::Material(const std::string& filename, const std::string& root, const s
 			TGAImage map = TGAImage();
 			map.read_tga_file(root + textureName);
 			map.flip_vertically();
-			texture = map;
-			//map_Kd = generateMipmap(map);
+			map_Kd = generateMipmap(map);
 			//map_Kd.write_tga_file(root + "/read_result/" + textureName + ".tga");
 		}
 		else if (s.compare(0, 7, "map_Ks ") == 0)
@@ -121,7 +120,7 @@ Material::Material(const std::string& filename, const std::string& root, const s
 			TGAImage map = TGAImage();
 			map.read_tga_file(root + textureName);
 			map.flip_vertically();
-			//map_Ks = generateMipmap(map);
+			map_Ks = generateMipmap(map);
 			//map_Ks.write_tga_file(root + "/read_result/" + textureName + ".tga");
 		}
 		else if (s.compare(0, 7, "map_Ns ") == 0)
@@ -132,7 +131,7 @@ Material::Material(const std::string& filename, const std::string& root, const s
 			TGAImage map = TGAImage();
 			map.read_tga_file(root + textureName);
 			map.flip_vertically();
-			//map_Ns = generateMipmap(map);
+			map_Ns = generateMipmap(map);
 			//map_Ns.write_tga_file(root + "/read_result/" + textureName + ".tga");
 		}
 		else if (s.compare(0, 6, "map_d ") == 0)
@@ -143,7 +142,7 @@ Material::Material(const std::string& filename, const std::string& root, const s
 			TGAImage map = TGAImage();
 			map.read_tga_file(root + textureName);
 			map.flip_vertically();
-			//map_d = generateMipmap(map);
+			map_d = generateMipmap(map);
 			//map_d.write_tga_file(root + "/read_result/" + textureName + ".tga");
 		}
 		else if (s.compare(0, 9, "map_Bump ") == 0)
@@ -154,10 +153,11 @@ Material::Material(const std::string& filename, const std::string& root, const s
 			TGAImage map = TGAImage();
 			map.read_tga_file(root + textureName);
 			map.flip_vertically();
-			normal_texture = map;
-			//map_Bump = generateMipmap(map);
+			map_Bump = generateMipmap(map);
 			//map_Bump.write_tga_file(root + "/read_result/" + textureName + ".tga");
 		}
 	}
 
 }
+
+

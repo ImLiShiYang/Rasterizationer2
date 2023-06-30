@@ -47,6 +47,21 @@ public:
 		cameraSpacePos = v.cameraSpacePos;
 		return *this;
 	}
+	bool empty()
+	{
+		if (vertex.x == 0 && vertex.y == 0 && vertex.z == 0 && vertex.w == 0 &&
+			(int)vertexColor.bgra[0] == 0 && (int)vertexColor.bgra[1] == 0 && (int)vertexColor.bgra[2] == 0 && (int)vertexColor.bgra[3] == 0 &&
+			normal.x == 0 && vertex.y == 0 && vertex.z == 0 && vertex.w == 0 &&
+			texcoord.x == 0 && texcoord.y == 0)
+		{
+			return true;
+		}
+		if (isnan(vertex.x) && isnan(vertex.y) && isnan(vertex.z) && isnan(vertex.w))
+		{
+			return true;
+		}
+		return false;
+	}
 
 public:
 	glm::vec4 vertex;
@@ -116,7 +131,7 @@ inline Vertex barycentric_coordinates_perspective2(const Triangle& t, const glm:
 }
 */
 
-inline Vertex barycentric_coordinates_perspective(const Vertex& pos, const Vertex& p0, const Vertex& p1, const Vertex& p2,
+inline Vertex barycentric_coordinates_perspective(const glm::vec2& pos, const Vertex& p0, const Vertex& p1, const Vertex& p2,
 	std::vector<glm::vec4>& v)
 {
 	/*
@@ -168,7 +183,7 @@ inline Vertex barycentric_coordinates_perspective(const Vertex& pos, const Verte
 	float xa = p0.vertex.x; float ya = p0.vertex.y;
 	float xb = p1.vertex.x; float yb = p1.vertex.y;
 	float xc = p2.vertex.x; float yc = p2.vertex.y;
-	float x = pos.vertex.x; float y = pos.vertex.y;
+	float x = pos.x; float y = pos.y;
 
 	float g = ((ya - yb) * x + (xb - xa) * y + xa * yb - xb * ya) /
 		((ya - yb) * xc + (xb - xa) * yc + xa * yb - xb * ya);

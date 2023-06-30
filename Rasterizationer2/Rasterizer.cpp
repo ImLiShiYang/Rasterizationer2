@@ -213,23 +213,62 @@ void Rasterizer::rasterize_edge_equation(const Triangle& origin_m,const Triangle
 	int bottomEdge = std::floor(std::min({ m.vertex[0].vertex.y, m.vertex[1].vertex.y, m.vertex[2].vertex.y }));
 	int TopEdge = std::ceil(std::max({ m.vertex[0].vertex.y, m.vertex[1].vertex.y, m.vertex[2].vertex.y }));
 	 
-	for (int y = bottomEdge; y < TopEdge; y++) 
+	for (int y = bottomEdge; y < TopEdge; y+=2) 
 	{
-		for (int x = leftEdge; x < rightEdge; x++) 
+		for (int x = leftEdge; x < rightEdge; x+=2) 
 		{
-			Vertex pos(glm::vec4((float)x + 0.5, (float)y + 0.5, 0.f, 0.f));
-			if (insideTriangle(m, pos.vertex.x, pos.vertex.y))
+			Vertex pos[2][2];
+			for (int a : {x, x+1})
 			{
-				//Vertex pixel= barycentric_coordinates(pos, m.vertex[0], m.vertex[1], m.vertex[2]);
-				Vertex pixel = barycentric_coordinates_perspective(pos, origin_m.vertex[0], origin_m.vertex[1], origin_m.vertex[2], clipSpacePos);
-				//Vertex pixel = barycentricPerspectiveLerp(m, glm::vec2((float)x + 0.5, (float)y + 0.5), clipSpacePos);
-
-				TGAColor color = shader.FragmentShader(pixel);
-
-				if (pixel.vertex.z > z_buffer[get_index(pos.vertex.x, pos.vertex.y)])
+				for (int b : {y, y+1})
 				{
-					z_buffer[get_index(pos.vertex.x, pos.vertex.y)] = pixel.vertex.z;
-					image.set(x, y, color);
+					if (insideTriangle(m, (float)a+0.5f, (float)b+0.5f))
+					{
+						pos[a-x][b-y] = barycentric_coordinates_perspective(glm::vec2((float)a + 0.5f, (float)b + 0.5f), origin_m.vertex[0],
+							origin_m.vertex[1], origin_m.vertex[2], clipSpacePos);
+					}
+				}
+			}
+
+			float ddx = -1;  // 初始化ddx
+			float ddy = -1;  // 初始化ddy
+
+			for (int i : {0, 1})
+			{
+				if (!pos[i][0].empty() && !pos[i][1].empty())
+				{
+					ddx = std::max(std::fabs(glm::distance(pos[i][0].texcoord, pos[i][1].texcoord)), ddx);
+				}
+				if (!pos[0][i].empty() && !pos[1][i].empty())
+				{
+					ddy = std::max(std::fabs(glm::distance(pos[0][i].texcoord, pos[1][i].texcoord)), ddy);
+				}
+			}
+
+			// 设置纹理坐标的梯度
+			shader.setddx(ddx);
+			shader.setddy(ddy);
+
+			
+			// 对于2x2矩阵中的每个像素
+			for (int a : {0, 1})
+			{
+				for (int b : {0, 1})
+				{
+					if (pos[a][b].empty()) continue;  // 如果像素为空，跳过当前循环
+
+					// 调用FragmentShader处理片元，并将返回的颜色设置为当前像素的颜色
+					pos[a][b].vertexColor = shader.FragmentShader(pos[a][b]);
+
+					// 如果当前像素的深度值大于z-buffer的值
+					if (pos[a][b].vertex.z > z_buffer[get_index(x + a, y + b)])
+					{
+						// 更新图像的像素为当前像素的颜色
+						image.set(x + a, y + b, pos[a][b].vertexColor);
+
+						// 更新z-buffer的值为当前像素的深度值
+						z_buffer[get_index(x + a, y + b)] = pos[a][b].vertex.z;
+					}
 				}
 			}
 		}
@@ -516,12 +555,12 @@ void Rasterizer::SuthHodgClip(std::vector<Vertex>& poly_points, Triangle& triang
 			//边缘的交点
 			float x = x_intersect(p1, p2, poly_points[i].vertex, poly_points[j].vertex);
 			float y = y_intersect(p1, p2, poly_points[i].vertex, poly_points[j].vertex);
-			Vertex pos_intersection(glm::vec4(x, y, 0, 0));
-			pos_intersection = barycentric_coordinates_perspective(pos_intersection, triangle.vertex[0],
+			glm::vec2 pos_intersection(x, y);
+			Vertex pos_inter = barycentric_coordinates_perspective(pos_intersection, triangle.vertex[0],
 				triangle.vertex[1], triangle.vertex[2], clipSpacePos);
-			pos_intersection.vertex.x = x;
-			pos_intersection.vertex.y = y;
-			new_point.push_back(pos_intersection);
+			pos_inter.vertex.x = x;
+			pos_inter.vertex.y = y;
+			new_point.push_back(pos_inter);
 
 			//第二个点
 			new_point.push_back(poly_points[j]);
@@ -535,12 +574,12 @@ void Rasterizer::SuthHodgClip(std::vector<Vertex>& poly_points, Triangle& triang
 			//边缘的交点
 			float x = x_intersect(p1, p2, poly_points[i].vertex, poly_points[j].vertex);
 			float y = y_intersect(p1, p2, poly_points[i].vertex, poly_points[j].vertex);
-			Vertex pos_intersection(glm::vec4(x, y, 0, 0));
-			pos_intersection = barycentric_coordinates_perspective(pos_intersection, triangle.vertex[0],
+			glm::vec2 pos_intersection(x, y);
+			Vertex pos_inter = barycentric_coordinates_perspective(pos_intersection, triangle.vertex[0],
 				triangle.vertex[1], triangle.vertex[2], clipSpacePos);
-			pos_intersection.vertex.x = x;
-			pos_intersection.vertex.y = y;
-			new_point.push_back(pos_intersection);
+			pos_inter.vertex.x = x;
+			pos_inter.vertex.y = y;
+			new_point.push_back(pos_inter);
 		}
 
 		// 情况4：当两个点都在外部时

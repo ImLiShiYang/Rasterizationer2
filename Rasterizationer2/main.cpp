@@ -4,7 +4,7 @@
 #include <string>
 #include <chrono>
 
-auto eye_pos = glm::vec3(0, 0, 1.5f);
+auto eye_pos = glm::vec3(0, 0.5, 1.5f);
 auto gaze_dir = glm::vec3(0, 0, 0);
 auto view_up = glm::vec3(0, 1, 0);
 float angle = 0;
@@ -20,6 +20,108 @@ class Shader :public IShader
 {
 public:
 	Shader() = default;
+
+	glm::vec3 sample(const glm::vec2 texcoord, const std::vector<TGAImage>& texture)
+	{
+		// 如果纹理向量不为空
+		if (!texture.empty())
+		{
+			// 初始化mipmap等级为0
+			float mipmap_level = 0;
+
+			// 如果横向或纵向的差分值存在
+			if (ddx != -1.0f || ddy != -1.0f)
+			{
+				// 计算当前最大的mipmap等级
+				float max_level = texture.size() - 1;
+
+				// 根据横向或纵向差分值计算预期的mipmap等级
+				float d = std::max(ddx * texture[0].width(), ddy * texture[0].height());
+				mipmap_level = std::log2(d);
+
+				// 如果计算得到的mipmap等级小于0，那么在最低等级进行采样
+				if (mipmap_level < 0)
+				{
+					mipmap_level = 0;
+					// 使用双线性插值方法获取纹理颜色
+					TGAColor var = bilinearInterpolate(texture[mipmap_level],
+						texcoord.x * texture[mipmap_level].width(),
+						texcoord.y * texture[mipmap_level].height());
+
+					// 返回RGB颜色值
+					return glm::vec3(var.bgra[2] / 255.0, var.bgra[1] / 255.0, var.bgra[0] / 255.0);
+				}
+
+				// 如果计算得到的mipmap等级大于最大等级，那么在最高等级进行采样
+				if (mipmap_level > max_level)
+				{
+					mipmap_level = max_level;
+					// 使用双线性插值方法获取纹理颜色
+					TGAColor var = bilinearInterpolate(texture[mipmap_level],
+						texcoord.x * texture[mipmap_level].width(),
+						texcoord.y * texture[mipmap_level].height());
+
+					// 返回RGB颜色值
+					return glm::vec3(var.bgra[2] / 255.0, var.bgra[1] / 255.0, var.bgra[0] / 255.0);
+				}
+			}
+
+			// 计算出mipmap等级的上下界
+			int f_mipmap_level = floor(mipmap_level);
+			int c_mipmap_level = ceil(mipmap_level);
+
+			// 检查下届是否小于0，如果是则触发断点
+			if (f_mipmap_level < 0) __debugbreak();
+
+			// 在两个相邻mipmap等级上进行双线性插值，获取两个颜色值
+			TGAColor f_var = bilinearInterpolate(texture[f_mipmap_level],
+				texcoord.x * texture[f_mipmap_level].width(),
+				texcoord.y * texture[f_mipmap_level].height());
+			TGAColor c_var = bilinearInterpolate(texture[c_mipmap_level],
+				texcoord.x * texture[c_mipmap_level].width(),
+				texcoord.y * texture[c_mipmap_level].height());
+
+			// 对两个颜色值进行线性插值，获取最后的颜色值
+			TGAColor var = ColorLerp(f_var, c_var, mipmap_level - f_mipmap_level);
+
+			// 返回RGB颜色值
+			return glm::vec3(var.bgra[2] / 255.0, var.bgra[1] / 255.0, var.bgra[0] / 255.0);
+		}
+		// 如果纹理向量为空，则返回特殊的颜色值表示错误
+		else 
+		{
+			return glm::vec3(-200, -200, -200);
+		}
+	}
+
+	void calculate_Texture(const Material* material, const glm::vec2 texcoord,
+		glm::vec3& Ka, glm::vec3& Kd, glm::vec3& Ks, glm::vec3& Ke)		
+	{
+		// 试图从Ke的纹理图像中采样颜色
+		Ke = sample(texcoord, material->map_Ke);
+		// 如果采样失败，那么直接使用材质的Ke参数
+		if (Ke.x == -200 && Ke.y == -200 && Ke.z == -200)
+			Ke = material->Ke;
+
+		// 试图从Kd的纹理图像中采样颜色
+		Kd = sample(texcoord, material->map_Kd);
+		// 如果采样失败，那么直接使用材质的Kd参数
+		if (Kd.x == -200 && Kd.y == -200 && Kd.z == -200)
+			Kd = material->Kd;
+
+		// 试图从Ka的纹理图像中采样颜色
+		Ka = sample(texcoord, material->map_Ka);
+		// 如果采样失败，那么直接使用材质的Ka参数
+		if (Ka.x == -200 && Ka.y == -200 && Ka.z == -200)
+			Ka = material->Ke;
+
+		// 试图从Ks的纹理图像中采样颜色
+		Ks = sample(texcoord, material->map_Ks);
+		// 如果采样失败，那么直接使用材质的Ks参数
+		if (Ks.x == -200 && Ks.y == -200 && Ks.z == -200)
+			Ks = material->Ke;
+	}
+
 	virtual void VertexShader(Triangle& primitive)
 	{
 		modeling = Model_Matrix(glm::vec3(0, 0, 0), angle, glm::vec3(0, 1, 0));
@@ -45,56 +147,44 @@ public:
 
 	virtual TGAColor FragmentShader(Vertex& vertex)
 	{
-		glm::vec3 Normal = glm::normalize(glm::vec3(vertex.normal));
-		float u = vertex.texcoord.x;
-		float v = vertex.texcoord.y;
-		float w = material->normal_texture.width();
-		float h = material->normal_texture.height();
-		//从法线贴图中得到法线
-		TGAColor uv = bilinearInterpolate(material->normal_texture, u * w, v * h);
+		glm::vec3 Ka;
+		glm::vec3 Kd;
+		glm::vec3 Ks;
+		glm::vec3 Ke;
+		glm::vec3 Normal;
 
-		glm::vec3 uv_vec((float)uv.bgra[2] / 255.f * 2 - 1, (float)uv.bgra[1] / 255.f * 2 - 1, (float)uv.bgra[0] / 255.f * 2 - 1);
-		uv_vec = glm::normalize(uv_vec);
+		calculate_Texture(material, vertex.texcoord, Ka, Kd, Ks, Ke);
 
-		glm::vec3 p1p0 = glm::vec3(tri_cameraspace.vertex[1].vertex - tri_cameraspace.vertex[0].vertex);
-		glm::vec3 p2p0 = glm::vec3(tri_cameraspace.vertex[2].vertex - tri_cameraspace.vertex[0].vertex);
-		glm::vec3 fu = glm::vec3(tri_cameraspace.vertex[1].texcoord.x - tri_cameraspace.vertex[0].texcoord.x,
-			tri_cameraspace.vertex[2].texcoord.x - tri_cameraspace.vertex[0].texcoord.x, 0);
-		glm::vec3 fv = glm::vec3(tri_cameraspace.vertex[1].texcoord.y - tri_cameraspace.vertex[0].texcoord.y,
-			tri_cameraspace.vertex[2].texcoord.y - tri_cameraspace.vertex[0].texcoord.y, 0);
+		Normal = glm::normalize(glm::vec3(vertex.normal));
 
-		glm::mat3 A = glm::transpose(glm::mat3(p1p0, p2p0, Normal));
-		glm::mat3 A_inverse = glm::inverse(A);
+		//Bump
+		if (!material->map_Bump.empty())
+		{
+			//从切线空间法线贴图中得到法线
+			glm::vec3 uv = sample(vertex.texcoord, material->map_Bump);
 
-		glm::vec3 T = A_inverse * fu;;
-		glm::vec3 B = A_inverse * fv;
+			glm::vec3 uv_vec(uv.x * 2 - 1, uv.y * 2 - 1, uv.z * 2 - 1);
+			uv_vec = glm::normalize(uv_vec);
 
-		glm::mat3 TBN(glm::normalize(T), glm::normalize(B), Normal);
-		Normal = TBN * uv_vec;
+			glm::vec3 p1p0 = glm::vec3(tri_cameraspace.vertex[1].vertex - tri_cameraspace.vertex[0].vertex);
+			glm::vec3 p2p0 = glm::vec3(tri_cameraspace.vertex[2].vertex - tri_cameraspace.vertex[0].vertex);
+			glm::vec3 fu = glm::vec3(tri_cameraspace.vertex[1].texcoord.x - tri_cameraspace.vertex[0].texcoord.x,
+				tri_cameraspace.vertex[2].texcoord.x - tri_cameraspace.vertex[0].texcoord.x, 0);
+			glm::vec3 fv = glm::vec3(tri_cameraspace.vertex[1].texcoord.y - tri_cameraspace.vertex[0].texcoord.y,
+				tri_cameraspace.vertex[2].texcoord.y - tri_cameraspace.vertex[0].texcoord.y, 0);
+
+			glm::mat3 A = glm::transpose(glm::mat3(p1p0, p2p0, Normal));
+			glm::mat3 A_inverse = glm::inverse(A);
+
+			glm::vec3 T = A_inverse * fu;;
+			glm::vec3 B = A_inverse * fv;
+
+			glm::mat3 TBN(glm::normalize(T), glm::normalize(B), Normal);
+			Normal = TBN * uv_vec;
+		}
 
 		float Ie = 0;
-		/*
-		glm::vec3 Ka(0.005f), 
-			Kd((float)vertex.vertexColor.bgra[2] / 255, (float)vertex.vertexColor.bgra[1] / 255, (float)vertex.vertexColor.bgra[0] / 255),
-			Ks(0.7937f), Ke(0.0f);*/
-
-		
-		glm::vec3 Ka = material->Ka;
-		glm::vec3 Kd;
-		if (material->texture.width() == 0)
-		{
-			Kd = material->Kd == glm::vec3(0) ? glm::vec3(0.6) : material->Kd;
-		}
-		else
-		{
-			float uv_u = vertex.texcoord.x * material->texture.width();
-			float uv_v = vertex.texcoord.y * material->texture.height();
-			TGAColor color_text = bilinearInterpolate(material->texture, uv_u, uv_v);
-			Kd = glm::vec3((float)color_text.bgra[2] / 255, (float)color_text.bgra[1] / 255, (float)color_text.bgra[0] / 255);			
-		}
-		
-		glm::vec3 Ks = material->Ks;
-		glm::vec3 Ke = material->Ke;
+		float Ns = material->Ns;
 		glm::vec3 color(0, 0, 0);
 		glm::vec3 pos = vertex.cameraSpacePos;
 		for (PointLight& light : lights)
@@ -117,10 +207,9 @@ public:
 			//specular
 			auto viewdir = glm::normalize(-pos);
 			auto h = glm::normalize(viewdir + lightdir);
-			auto specular = Ks * light.intensity * std::pow(std::max(0.0f, glm::dot(h, glm::vec3(vertex.normal))), 20.f)
-				/ r_2;
-
-			color += emission + ambient + diffuse + specular;
+			auto specular = Ks * light.intensity * std::pow(std::max(0.0f, glm::dot(h, glm::vec3(vertex.normal))), Ns);
+			//+specular
+			color += emission + ambient + diffuse ;
 		}
 		color = color * 255.0f;
 
@@ -137,6 +226,16 @@ public:
 	virtual void setmtl(Material& _material)
 	{
 		material = &_material;
+	}
+
+	virtual void setddx(const float _ddx) override
+	{
+		ddx = _ddx;
+	}
+
+	virtual void setddy(const float _ddy) override
+	{
+		ddy = _ddy;
 	}
 
 public:
@@ -190,7 +289,7 @@ void main()
 	}
 
 	Shader shader;
-	PointLight light = PointLight(glm::vec3(20, 20, 20), 1200);
+	PointLight light = PointLight(glm::vec3(20, 20, 20), 1500);
 	light.position = View_Matrix(eye_pos, gaze_dir, view_up) * glm::vec4(light.position, 0);
 		
 	shader.lights.push_back(light);

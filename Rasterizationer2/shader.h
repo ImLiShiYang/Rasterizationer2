@@ -19,8 +19,8 @@ public:
 class IShader {
 public:
 	virtual void setmtl(Material& material) = 0;
-	//virtual void setddx(const float ddx) = 0;
-	//virtual void setddy(const float ddy) = 0;
+	virtual void setddx(const float ddx) = 0;
+	virtual void setddy(const float ddy) = 0;
 	virtual void VertexShader(Triangle& primitive) = 0;
 	virtual TGAColor FragmentShader(Vertex& vertex) = 0;
 };
