@@ -206,6 +206,12 @@ void Rasterizer::rasterize_edge_walking(const Triangle& m , const std::array<glm
 
 }
 
+Vertex Rasterizer::MSAA(const Vertex& v)
+{
+
+	return Vertex();
+}
+
 void Rasterizer::rasterize_edge_equation(const Triangle& origin_m,const Triangle& m, std::vector<glm::vec4>& clipSpacePos, IShader& shader)
 {
 	int leftEdge = std::floor(std::min({ m.vertex[0].vertex.x, m.vertex[1].vertex.x, m.vertex[2].vertex.x }));
@@ -274,6 +280,8 @@ void Rasterizer::rasterize_edge_equation(const Triangle& origin_m,const Triangle
 		}
 	}
 }
+
+
 
 int Rasterizer::get_index(int x, int y)
 {

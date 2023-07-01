@@ -55,6 +55,8 @@ public:
 	void rasterize_edge_walking(const Triangle& m, const std::array<glm::vec4, 3>& clipSpacePos_Array);
 	void rasterize_edge_equation(const Triangle& origin_m,const Triangle& m, std::vector<glm::vec4>& clipSpacePos, IShader& shader);
 
+	Vertex MSAA(const Vertex& v);
+
 private:
 	TGAImage image;
 	const TGAColor white = TGAColor(255, 255, 255, 255);
