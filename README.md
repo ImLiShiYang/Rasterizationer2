@@ -12,7 +12,7 @@ MVP变换
 
 三角形光栅化
 
-读取obj-mtl文件
+读取obj-mtl文件，使用切线空间的法线贴图
 
 blinnphone着色模型
 
