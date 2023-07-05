@@ -5,13 +5,13 @@
 Rasterizer::Rasterizer(std::string file, TGAImage img):filename(file),image(img), width(img.width()), height(img.height())
 {
 	image.flip_vertically(); /*让坐标原点位于图像左下角*/
-
+	color_buffer = TGAImage(width * 2, height * 2, TGAImage::RGB);
 	xmin = 0;
 	xmax = width;
 	ymin = 0;
 	ymax = height;
 
-	z_buffer.resize(img.width() * img.height());
+	z_buffer.resize(img.width() * img.height() * 4);
 	std::fill(z_buffer.begin(), z_buffer.end(), -std::numeric_limits<float>::infinity());
 }
 
@@ -261,20 +261,37 @@ void Rasterizer::rasterize_edge_equation(const Triangle& origin_m,const Triangle
 			{
 				for (int b : {0, 1})
 				{
-					if (pos[a][b].empty()) continue;  // 如果像素为空，跳过当前循环
+					glm::vec2 pos_((float)x + a, (float)y + b);
+					glm::vec2 p[4];
+					glm::vec2 p1(pos_.x + 0.25f, pos_.y + 0.25f), p2(pos_.x + 0.75f, pos_.y + 0.25f);
+					glm::vec2 p3(pos_.x + 0.25f, pos_.y + 0.75f), p4(pos_.x + 0.75f, pos_.y + 0.75f);
+					p[0] = p1;
+					p[1] = p2;
+					p[2] = p3;
+					p[3] = p4;
 
-					// 调用FragmentShader处理片元，并将返回的颜色设置为当前像素的颜色
-					pos[a][b].vertexColor = shader.FragmentShader(pos[a][b]);
+					TGAColor finalcolor;
+					bool first_sub = false;
 
-					// 如果当前像素的深度值大于z-buffer的值
-					if (pos[a][b].vertex.z > z_buffer[get_index(x + a, y + b)])
+					for (int i = 0; i < 4; i++)
 					{
-						// 更新图像的像素为当前像素的颜色
-						image.set(x + a, y + b, pos[a][b].vertexColor);
+						if (insideTriangle(m, p[i].x, p[i].y))
+						{
+							Vertex pixel_sub = barycentric_coordinates_perspective(p[i], origin_m.vertex[0], origin_m.vertex[1], origin_m.vertex[2], clipSpacePos);
+							if (pixel_sub.vertex.z > z_buffer[get_index((p[i].x - 0.25f) * 2, (p[i].y - 0.25f) * 2)])
+							{
+								if (!first_sub)
+								{
+									finalcolor = shader.FragmentShader(pixel_sub);
+									first_sub = true;
+								}
+								z_buffer[get_index((p[i].x - 0.25f) * 2, (p[i].y - 0.25f) * 2)] = pixel_sub.vertex.z;
+								color_buffer.set((p[i].x - 0.25f) * 2, (p[i].y - 0.25f) * 2, finalcolor);
+							}
 
-						// 更新z-buffer的值为当前像素的深度值
-						z_buffer[get_index(x + a, y + b)] = pos[a][b].vertex.z;
+						}
 					}
+
 				}
 			}
 		}
@@ -369,6 +386,18 @@ void Rasterizer::draw(std::vector<std::shared_ptr<Mesh>> MeshList, IShader& shad
 		}
 	}
 	
+	for (int y = 0; y < image.height(); y++)
+	{
+		for (int x = 0; x < image.width(); x++)
+		{
+			TGAColor sub1 = color_buffer.get(2 * x, 2 * y) * 0.25f;
+			TGAColor sub2 = color_buffer.get(2 * x + 1, 2 * y) * 0.25f;
+			TGAColor sub3 = color_buffer.get(2 * x, 2 * y + 1) * 0.25f;
+			TGAColor sub4 = color_buffer.get(2 * x + 1, 2 * y + 1) * 0.25f;
+			TGAColor final_color = sub1 + sub2 + sub3 + sub4;
+			image.set(x, y, final_color);
+		}
+	}
 
 }
 
